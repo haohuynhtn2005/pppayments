@@ -1,0 +1,19 @@
+{
+    "name": "dell/wp_shieldpp",
+    "autoload": {
+        "psr-4": {
+            "Dell\\WpShieldpp\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "ThanhNee",
+            "email": "nbthanh93@gmail.com"
+        }
+    ],
+    "require": {
+        "paypal/paypal-checkout-sdk": "^1.0",
+        "paypal/rest-api-sdk-php": "^1.14",
+        "stripe/stripe-php": "^17.4"
+    }
+}

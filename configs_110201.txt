@@ -1,0 +1,1 @@
+{"cs_merchant_key":"d3JWyGxoVVPm0Q6k","cs_shield_key":"f34xNUppbQ7FlzpO","cs_api_url":"http://127.0.0.1:8001/v1"}
