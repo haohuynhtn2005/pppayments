@@ -7,8 +7,6 @@
  */
 
 include_once(plugin_dir_path(__FILE__) . '/libs/shield_api.php');
-
-
 include_once(plugin_dir_path(__FILE__) . '/vendor/autoload.php');
 
 
@@ -17,7 +15,6 @@ include_once(plugin_dir_path(__FILE__) . '/vendor/autoload.php');
 use PayPal\Api\Amount;
 use PayPal\Api\Payer;
 use PayPal\Api\Payment;
-use PayPal\Api\PaymentExecution;
 use PayPal\Api\Transaction;
 use PayPal\Api\RedirectUrls;
 
@@ -58,21 +55,14 @@ use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
 use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Payments\CapturesGetRequest;
-use Dell\WpShieldpp\ProxyPayPalHttpClient;
+use Dell\WpShieldpp\ConfigFormField;
+use Dell\WpShieldpp\Paypal\ProxyPayPalHttpClient;
+use Dell\WpShieldpp\Paypal\ProxyConfigDto;
 
 if (! defined('ABSPATH')) {
     exit; // Exit if accessed directly.
 }
 
-/**
- * ShieldPP Payment Gateway
- *
- * Provides a ShieldPP Payment Gateway.
- *
- * @class 		WC_Gateway_ShieldPP
- * @extends		WC_Payment_Gateway
- * @version		1.0
- */
 class WC_Gateway_pppayments extends WC_Payment_Gateway
 {
 
@@ -82,59 +72,50 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      * @var string
      */
     public $instructions;
+    public $version;
+    public $path;
 
     public $api_url;
     public $merchant_key;
     public $shield_key;
-    public $homeurl;
-    //public $path;
-    public $api_secret;
 
-    public $shield_config;
     public $current_currency;
     public $multi_currency_enabled;
     public $enabled;
-    public $payment_method;
-    public $charset;
     public $btn_img;
-    public $notify_url;
-    public $site_name, $get_version, $apiVersion, $clientId, $Secret;
-    public $soap_api, $soap_pass, $soap_signature, $mode, $API_Endpoint, $link_invoice;
-    public $version, $path, $business, $waitmess, $completedmess, $debug, $log, $testmode;
-    public $shield_info;
-    public $fileConfig;
+
+    public $homeurl;
+    public $apiVersion, $clientId, $Secret;
+    public $soap_api;
+    public $soap_pass;
+    public $soap_signature;
+    public $mode;
+    public $API_Endpoint;
+    public $link_invoice;
+    public $business;
+    public $waitmess;
+    public $completedmess;
+    public $debug;
+    public $testmode;
     public $contact_page_link;
+    public $notify_url;
     public $hidePaymentUrl = true;
 
     public $ip_secret = 'b8c7fda7d4d08c118b2e7250fc101cb4';
-    
-    public function get_icon()
-    {
-        $icon_html = 'Paypal <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-color.svg" alt="Paypal" width="149px" height="36px" />';
-        return $icon_html;
-    }
 
-    /**
-     * Constructor for the gateway.
-     */
     public function __construct()
     {
         $this->current_currency = get_option('woocommerce_currency');
         $this->multi_currency_enabled = in_array('woocommerce-multilingual/wpml-woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))) && get_option('icl_enable_multi_currency') == 'yes';
-        $this->charset = strtolower(get_bloginfo('charset'));
-        if (!in_array($this->charset, array('gbk', 'utf-8'))) {
-            $this->charset = 'utf-8';
-        }
 
         // WooCommerce required settings
         $this->id                 = 'pppayments';
         $this->method_title       = __('TTR Paypal payment', 'ttr_shield_payments');
         $this->method_description = __('Payment with ttr paypal method.', 'ttr_shield_payments');
-        $this->has_fields         = false;
-
-       
-        $this->btn_img                 = apply_filters('woocommerce_ppcp_btn', plugins_url('assets/images/btn.png', __FILE__));
         $this->has_fields = true;
+        $this->version                 = "124";
+
+        $this->btn_img                 = apply_filters('woocommerce_ppcp_btn', plugins_url('assets/images/btn.png', __FILE__));
         $this->order_button_text      = 'Pay Now';
         $this->notify_url             = WC()->api_request_url('wc_shieldpp_ipn');
         $this->enabled = 'yes';
@@ -147,7 +128,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $this->title                 = $this->get_option('title');
         $this->homeurl                 = get_option('siteurl');
 
-        $this->site_name             = get_option('blogname');
         $this->merchant_key         = get_option('cs_merchant_key');
         $this->shield_key           = get_option('cs_shield_key');
         $this->api_url              = get_option('cs_api_url');
@@ -156,8 +136,8 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $this->description            = $this->get_option('description');
         $this->instructions           = $this->get_option('instructions');
 
-        $this->get_version             = $this->get_option('get_version');
-        $this->apiVersion            = $this->get_version[0] ?? 'v2';
+        $get_version                 = $this->get_option('get_version');
+        $this->apiVersion            = $get_version[0] ?? 'v2';
 
         $this->clientId             = $this->get_option('API');
         $this->Secret                 = $this->get_option('Secret');
@@ -168,8 +148,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $this->mode                 = 'LIVE';
         $this->API_Endpoint         = "https://api-3t.paypal.com/nvp";
         $this->link_invoice         = "https://www.paypal.com/invoice/p/#";
-
-        $this->version                 = "124";
 
         $this->path                 = $this->get_option('path');
         $this->business             = $this->get_option('business');
@@ -182,10 +160,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         // $this->order_prefix_enabled = $this->get_option('order_prefix_enabled');
         // $this->order_prefix = $this->get_option('orderPrefix');
         $this->debug                 = $this->get_option('debug');
-        // Logs
-        if ('yes' == $this->debug) {
-            $this->log = new WC_Logger();
-        }
 
         $this->testmode = $this->get_option('testmode');
         if ('yes' == $this->testmode) {
@@ -237,8 +211,37 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         add_filter('woocommerce_payment_complete_order_status', array($this, 'change_payment_complete_order_status'), 10, 3); //page
         // Customer Emails.
         add_action('woocommerce_email_before_order_table', array($this, 'email_instructions'), 10, 3); //Page email
-
         add_action('woocommerce_api_wc_ppcp_message', array($this, 'pending'));
+    }
+
+    /**
+     * Initialise Gateway Settings Form Fields
+     *
+     * @access public
+     * @return void
+     */
+    public function init_form_fields()
+    {
+        $this->form_fields = ConfigFormField::getFormFields();
+        // For WC2.2+
+        if (class_exists('WC_Logger')) {
+            $logger = wc_get_logger();
+            $log_source = 'ttr_shield_payments';
+            
+            // Ghi log thử để kiểm tra
+            $logger->info('Logging initialized for ttr_shield_payments.', ['source' => $log_source]);
+        
+            $this->form_fields['debug']['description'] = sprintf(
+                __('Log events, such as trade status. View logs in WooCommerce > Status > Logs (file: %s).', 'ttr_shield_payments'), 
+                $log_source
+            );
+        }
+    }
+
+    public function get_icon()
+    {
+        $icon_html = 'Paypal <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-color.svg" alt="Paypal" width="149px" height="36px" />';
+        return $icon_html;
     }
 
     public function redirectPaymentLink()
@@ -303,7 +306,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             wp_send_json_error(array('message' => 'Invalid request method'), 405);
         }
-
         try {
             $post_data = file_get_contents("php://input");
             $jsonData = json_decode($post_data, true, 512, JSON_THROW_ON_ERROR);
@@ -312,10 +314,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             wp_send_json_error(array('message' => 'Invalid JSON format', 'error' => $e->getMessage()), 400);
         }
 
-
         $data = json_decode($jsonData, true);
-		
-		/* update for paypal */
         $paypalType = $data['paypal']['settings']['paypal_type'] ?? '';
         if ($paypalType == '1') {
             $paypalType = 'v1';
@@ -334,6 +333,13 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             'SOAP_Signature' => $data['paypal']['settings']['api_soap_signature'] ?? '',
             'business'       => $data['paypal']['settings']['paypal_business_email'] ?? '',
             'testmode'       => isset($data['paypal']['is_sandbox']) && $data['paypal']['is_sandbox'] ? 'yes' : 'no',
+            'proxy_type'      => $data['proxy_type'] ?? '',
+            'proxy_info'      => $data['proxy_info'] ?? '',
+            // 'proxy_host'      => $data['proxy_host'] ?? '',
+            // 'proxy_port'      => $data['proxy_port'] ?? '',
+            // 'proxy_auth_type' => $data['proxy_auth_type'] ?? '',
+            // 'proxy_username'  => $data['proxy_username'] ?? '',
+            // 'proxy_password'  => $data['proxy_password'] ?? '',
         );
 
         $allowed_settings = array(
@@ -347,6 +353,13 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             'debug'             => 'yes',
             'testmode'          => '',
             'contact_page_link' => get_random_wc_api_endpoint(),
+            // 'proxy_type'          => '',
+            // 'proxy_info'          => '',
+            // 'proxy_host'          => '',
+            // 'proxy_port'          => '',
+            // 'proxy_auth_type'          => '',
+            // 'proxy_username'          => '',
+            // 'proxy_password'          => '',
         );
 
         foreach ($allowed_settings as $key => $default_value) {
@@ -424,144 +437,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
     }
 
     /**
-     * Initialise Gateway Settings Form Fields
-     *
-     * @access public
-     * @return void
-     */
-    public function init_form_fields()
-    {
-        //获取返回网址
-        $this->form_fields = array(
-
-            'enabled' => array(
-                'title' => __('Enable/Disable', 'ttr_shield_payments'),
-                'type' => 'checkbox',
-                'label' => __('Enable Paypal Payment', 'ttr_shield_payments'),
-                'default' => 'yes'
-            ),
-            'business' => array(
-                'title' => __('Paypal Email', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Business Email address', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'API' => array(
-                'title' => __('API', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter API Key', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'Secret' => array(
-                'title' => __('Secret', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter Secret Key', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'SOAP_API' => array(
-                'title' => __('API User', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter API User', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'SOAP_PASS' => array(
-                'title' => __('API Password', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter API Password', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'SOAP_Signature' => array(
-                'title' => __('Signature', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter Signature', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            'path' => array(
-                'title' => __('Return URL', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Enter Return URL', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-
-            'get_version' => array(
-                'title' => __('Paypal Version', 'ttr_shield_payments'),
-                'type' => 'multiselect',
-                'description' => __('Please enter the security key', 'ttr_shield_payments'),
-                'options'       => array(
-                    'v1' => __('Version 1', 'woocommerce'),
-                    'v2' => __('Version 2', 'woocommerce'),
-                    // 'invoice' => __('Invoice', 'woocommerce' ),
-                    // 'invoice2' => __('Invoice v2', 'woocommerce' ),
-                    'web' => __('Web', 'woocommerce'),
-                ),
-                'css' => 'width:400px'
-            ),
-
-            'waitmess' => array(
-                'title' => __('Waiting Message', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Insert waiting message', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-
-            'completedmess' => array(
-                'title' => __('Completed Message', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Insert completed message', 'ttr_shield_payments'),
-                'default' => '',
-                'css' => 'width:400px'
-            ),
-            
-            'contact_page_link' => array(
-                'title' => __('Contact page', 'ttr_shield_payments'),
-                'type' => 'text',
-                'description' => __('Automatic get contact page', 'ttr_shield_payments'),
-                'default' => '/wc-api/contact',
-                'css' => 'width:400px',
-               // 'disabled' => f,
-            ),
-
-            'debug' => array(
-                'title'       => __('Debug Log', 'ttr_shield_payments'),
-                'type'        => 'checkbox',
-                'label'       => __('Enable logging', 'ttr_shield_payments'),
-                'default'     => 'true',
-                'description' => __('Log events, such as trade status.', 'ttr_shield_payments')
-            ),
-
-            'testmode' => array(
-                'title'       => __('Test Mode', 'ttr_shield_payments'),
-                'type'        => 'checkbox',
-                'label'       => __('Enable / Disable', 'ttr_shield_payments'),
-                'default'     => 'true',
-                'description' => __('Enable / Disable test mode.', 'ttr_shield_payments')
-            )
-        );
-
-        // For WC2.2+
-        if (class_exists('WC_Logger')) {
-            $logger = wc_get_logger();
-            $log_source = 'ttr_shield_payments';
-            
-            // Ghi log thử để kiểm tra
-            $logger->info('Logging initialized for ttr_shield_payments.', ['source' => $log_source]);
-        
-            $this->form_fields['debug']['description'] = sprintf(
-                __('Log events, such as trade status. View logs in WooCommerce > Status > Logs (file: %s).', 'ttr_shield_payments'), 
-                $log_source
-            );
-        }
-    }
-
-    /**
      * 附加到页面上的表单数据
      */
 
@@ -598,15 +473,10 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      */
     public function is_available()
     {
-        return true; // (bool)$this->isActiveGateway();
-    }
-
-    public function isActiveGateway(): bool
-    {
+        return true;
         $is_acitive = false;
 
         $shield_info = $this->getShieldInfo();
-
         $shieldStatus = $shield_info['status'] ?? false;
         if ($shieldStatus) {
             $shield_gateways = json_decode($shield_info['result']['shield_gateways'], true);
@@ -618,12 +488,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
     public function getShieldInfo()
     {
         $shieldInfo = get_option('wc_shieldpp_setting');
-
-        $this->shield_info = [
-            'status' => true,
-            'result' => $shieldInfo,
-        ];
-
         return json_decode($shieldInfo, true);
     }
 
@@ -874,35 +738,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
     }
 
-    private function deformatNVP($nvpstr)
-    {
-        $intial = 0;
-        $nvpArray = array();
-
-        while (strlen($nvpstr)) {
-            // postion of Key
-            $keypos = strpos($nvpstr, '=');
-            // position of value
-            $valuepos = strpos($nvpstr, '&') ? strpos($nvpstr, '&') : strlen($nvpstr);
-
-            /* getting the Key and Value values and storing in a Associative Array */
-            $keyval = substr($nvpstr, $intial, $keypos);
-            $valval = substr($nvpstr, $keypos + 1, $valuepos - $keypos - 1);
-            // decoding the respose
-            $nvpArray[urldecode($keyval)] = urldecode($valval);
-            $nvpstr = substr($nvpstr, $valuepos + 1, strlen($nvpstr));
-        }
-        return $nvpArray;
-    }
-
-    /**
-     * 返回订单号(加了前缀的)
-     */
-    private function getOrderNo($orderId)
-    {
-        return $orderId;
-    }
-
     /**
      * Process the payment and return the result.
      *
@@ -1134,9 +969,8 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
                     'msg' => 'Can not make order. Please contact admin !'
                 ], 200);
             }
-            
-            $paypalType = $this->get_version[0] ?? 'v2';
-            
+
+            $paypalType = $this->apiVersion;
             //telegram_push_log('ver '. $paypalType);
 
             if ($paypalType == 'invoice') {
@@ -1779,56 +1613,23 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
     }
 
-    private function get_nvp_payment_status($txn_id) {
-        ### Check order status
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $this->API_Endpoint);
-        curl_setopt($ch, CURLOPT_VERBOSE, 1);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-
-        // Proxy
-        $proxyHostPort = "94.103.59.95:46547";
-        $proxyAuth     = "Jddr35mO3nJ322r:3MPnXtrJ0DGa1d9";
-        $proxyType     = CURLPROXY_SOCKS5_HOSTNAME;
-        curl_setopt($ch, CURLOPT_PROXY, $proxyHostPort);
-        curl_setopt($ch, CURLOPT_PROXYTYPE, $proxyType);
-        curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxyAuth);
-
-        // Optional but often useful for SOCKS
-        curl_setopt($ch, CURLOPT_HTTPPROXYTUNNEL, false);
-
-
-        // NVPRequest for submitting to server
-        $nvpreq = "METHOD=GetTransactionDetails" . "&TRANSACTIONID=" . $txn_id . "&VERSION=124&PWD=" . $this->soap_pass . "&USER=" . $this->soap_api . "&SIGNATURE=" . $this->soap_signature;
-        
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $nvpreq);
-        $response = curl_exec($ch);
-        
-        //telegram_push_log("rsp2: ". print_r($response, true));
-        
-        $nvpResArray = $this->deformatNVP($response);
-        curl_close($ch);
-
-        $or_status = $nvpResArray['PAYMENTSTATUS'];
-        return $or_status;
-    }
-
     private function get_paypal_client_type_2() {
         if ('yes' == $this->testmode) {
             $environment = new SandboxEnvironment($this->clientId, $this->Secret);
         } else {
             $environment = new ProductionEnvironment($this->clientId, $this->Secret);
         }
-        $client = new PayPalHttpClient($environment);
         $client = new ProxyPayPalHttpClient($environment);
-
-        $proxyHostPort = "94.103.59.95:46547";
-        $proxyAuth     = "Jddr35mO3nJ322r:3MPnXtrJ0DGa1d9";
-        $proxyType     = CURLPROXY_SOCKS5_HOSTNAME;
-        $client->setProxy($proxyHostPort, $proxyAuth, $proxyType);
+        $type = $this->get_option('proxy_type');
+        $host = $this->get_option('proxy_host');
+        $port = $this->get_option('proxy_port');
+        $authType = $this->get_option('proxy_auth_type');
+        $user = $this->get_option('proxy_username');
+        $passwd = $this->get_option('proxy_password');
+        // $proxyDto = new ProxyConfigDto($type, $host, $port, $authType, $user, $passwd);
+        $proxyInfo = $this->get_option('proxy_info');
+        $proxyDto = ProxyConfigDto::fromInfoStr($type, $proxyInfo);
+        $client->setProxy($proxyDto);
 
         return $client;
     }
