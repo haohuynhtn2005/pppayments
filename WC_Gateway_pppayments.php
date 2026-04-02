@@ -57,6 +57,8 @@ use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
 use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
+use PayPalCheckoutSdk\Payments\CapturesGetRequest;
+use Dell\WpShieldpp\ProxyPayPalHttpClient;
 
 if (! defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -658,16 +660,8 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             if (empty($cs_failed_url)) {
                 $cs_failed_url = $shield_gateways['return_link']['cs_failes_url'];
             }
-    
-            if ('yes' == $this->testmode) {
-                $environment = new SandboxEnvironment($this->clientId, $this->Secret);
-            } else {
-                $environment = new ProductionEnvironment($this->clientId, $this->Secret);
-            }
-            
-
             try {
-                $client = new PayPalHttpClient($environment);
+                $client = $this->get_paypal_client_type_2();
 
                 ini_set('display_errors', 1);
                 ini_set('display_startup_errors', 1);
@@ -784,28 +778,8 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
 
         try {
-
-            ### Check order status
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, $this->API_Endpoint);
-            curl_setopt($ch, CURLOPT_VERBOSE, 1);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_POST, 1);
-
-            // NVPRequest for submitting to server
-            $nvpreq = "METHOD=GetTransactionDetails" . "&TRANSACTIONID=" . $txn_id . "&VERSION=124&PWD=" . $this->soap_pass . "&USER=" . $this->soap_api . "&SIGNATURE=" . $this->soap_signature;
-            
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $nvpreq);
-            $response = curl_exec($ch);
-            
-            //telegram_push_log("rsp2: ". print_r($response, true));
-            
-            $nvpResArray = $this->deformatNVP($response);
-            curl_close($ch);
-
-            $or_status = $nvpResArray['PAYMENTSTATUS'];
+            // $or_status = $this->get_nvp_payment_status($txn_id);
+            $or_status = $this->get_capture_status($txn_id);
             if (strtolower($buyer_status) == "verified") {
                 $or_status = "Completed";
             }
@@ -947,12 +921,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $amount = $order->get_total();
         $currency = get_woocommerce_currency();
 
-        if ($this->testmode == "yes") {
-            $environment = new SandboxEnvironment($this->clientId, $this->Secret);
-        } else {
-            $environment = new ProductionEnvironment($this->clientId, $this->Secret);
-        }
-        $client = new PayPalHttpClient($environment);
+        $client = $this->get_paypal_client_type_2();
 
         $return_url = add_query_arg(
             [
@@ -1023,13 +992,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             wp_die('PayPal order ID missing.');
         }
 
-        // PayPal SDK
-        if ($this->testmode == "yes") {
-            $environment = new SandboxEnvironment($this->clientId, $this->Secret);
-        } else {
-            $environment = new ProductionEnvironment($this->clientId, $this->Secret);
-        }
-        $client = new PayPalHttpClient($environment);
+        $client = $this->get_paypal_client_type_2();
 
         $request = new OrdersCaptureRequest($paypal_order_id);
         $request->prefer('return=representation');
@@ -1193,10 +1156,12 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             if ($paymentStatus) {
                 $payment_invoice_url = $payment_res['payment_link'];
 
+                $redirectUrl = home_url('/wc-api/wc_redirect_payment_link');
+                // $redirectUrl = WC()->api_request_url('wc_redirect_payment_link');
                 if ($this->hidePaymentUrl) {
                     $payment_invoice_url = add_query_arg([
                         'pmcode' => pmCodeEncryptLinkToCode($payment_invoice_url),
-                    ], home_url('/wc-api/wc_redirect_payment_link'));
+                    ], $redirectUrl);
                 }
 
                 $res = array(
@@ -1265,13 +1230,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $this->path .= "&sign={$sign}";
 
         try {
-            if ($this->testmode == "yes") {
-                $environment = new SandboxEnvironment($this->clientId, $this->Secret);
-            } else {
-                $environment = new ProductionEnvironment($this->clientId, $this->Secret);
-            }
-
-            $client = new PayPalHttpClient($environment);
+            $client = $this->get_paypal_client_type_2();
 
             $unique_invoice_id = $orderNo . '-' . time();
 
@@ -1773,5 +1732,104 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             $redirectUrl = $this->homeurl . "/my-account/";
         }
         wp_redirect( $redirectUrl, 301 ); exit;
+    }
+
+    private function get_capture_status($txn_id) {
+        try {
+            $client = $this->get_paypal_client_type_2();
+            $request = new CapturesGetRequest($txn_id);
+            $captureRes = $client->execute($request);
+            $captureInfo = $captureRes->result;
+            $captureStatus = $captureInfo->status ?? null;
+
+            $map = [
+                'COMPLETED' => 'Completed',
+                'DECLINED' => 'Denied',
+                'PARTIALLY_REFUNDED' => 'Partially-Refunded',
+                'PENDING' => 'Pending',
+                'REFUNDED' => 'Refunded',
+                'FAILED' => 'Failed',
+            ];
+            return $map[$captureStatus] ?? 'None';
+        } catch (\PayPalHttp\HttpException $e) {
+            // PayPal API returned error
+            $errorBody = $e->getMessage(); // string
+            $statusCode = $e->statusCode;
+            
+            $message = "PayPal API error get capture info:\n";
+            $message .= "StatusCode: $statusCode\n";
+            $message .= "Response: $errorBody\n";
+            plugin_custom_log($message, 'debug.log');
+            telegram_push_log($message);
+            
+            http_response_code($statusCode);
+            if (strpos($errorBody, 'INVALID_RESOURCE_ID') !== false) {
+                echo json_encode([
+                    'status' => false,
+                    'msg'    => 'Access Denied: Invalid resource ID'
+                ]);
+                exit;
+            }
+        
+            echo json_encode([
+                'status' => false,
+                'msg'    => 'PayPal API error: ' . $errorBody
+            ]);
+            exit;
+        }
+    }
+
+    private function get_nvp_payment_status($txn_id) {
+        ### Check order status
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $this->API_Endpoint);
+        curl_setopt($ch, CURLOPT_VERBOSE, 1);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_POST, 1);
+
+        // Proxy
+        $proxyHostPort = "94.103.59.95:46547";
+        $proxyAuth     = "Jddr35mO3nJ322r:3MPnXtrJ0DGa1d9";
+        $proxyType     = CURLPROXY_SOCKS5_HOSTNAME;
+        curl_setopt($ch, CURLOPT_PROXY, $proxyHostPort);
+        curl_setopt($ch, CURLOPT_PROXYTYPE, $proxyType);
+        curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxyAuth);
+
+        // Optional but often useful for SOCKS
+        curl_setopt($ch, CURLOPT_HTTPPROXYTUNNEL, false);
+
+
+        // NVPRequest for submitting to server
+        $nvpreq = "METHOD=GetTransactionDetails" . "&TRANSACTIONID=" . $txn_id . "&VERSION=124&PWD=" . $this->soap_pass . "&USER=" . $this->soap_api . "&SIGNATURE=" . $this->soap_signature;
+        
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $nvpreq);
+        $response = curl_exec($ch);
+        
+        //telegram_push_log("rsp2: ". print_r($response, true));
+        
+        $nvpResArray = $this->deformatNVP($response);
+        curl_close($ch);
+
+        $or_status = $nvpResArray['PAYMENTSTATUS'];
+        return $or_status;
+    }
+
+    private function get_paypal_client_type_2() {
+        if ('yes' == $this->testmode) {
+            $environment = new SandboxEnvironment($this->clientId, $this->Secret);
+        } else {
+            $environment = new ProductionEnvironment($this->clientId, $this->Secret);
+        }
+        $client = new PayPalHttpClient($environment);
+        $client = new ProxyPayPalHttpClient($environment);
+
+        $proxyHostPort = "94.103.59.95:46547";
+        $proxyAuth     = "Jddr35mO3nJ322r:3MPnXtrJ0DGa1d9";
+        $proxyType     = CURLPROXY_SOCKS5_HOSTNAME;
+        $client->setProxy($proxyHostPort, $proxyAuth, $proxyType);
+
+        return $client;
     }
 }
