@@ -6,6 +6,8 @@ class My_Plugin_Updater
     private $remote_url;
     private $plugin_data;
     private $plugin_file;
+    private static $remote_info_cache = null;
+    private static $remote_info_cached = true;
 
     public function __construct($plugin_file, $remote_url)
     {
@@ -53,7 +55,6 @@ class My_Plugin_Updater
         }
 
         $remote = $this->get_remote_info();
-
         if ($remote && version_compare($remote->version, $this->get_current_version(), '>')) {
             $transient->response[$this->plugin_slug] = (object) [
                 'slug'        => $this->plugin_slug,
@@ -68,20 +69,37 @@ class My_Plugin_Updater
         return $transient;
     }
 
-    private function get_remote_info()
-    {
+    private function get_remote_info() {
+        $remote = (object) [
+            'name'         => 'Awesome Plugin',
+            'version'      => '2.5.1',                           // The new version available
+            'download_link'=> 'https://example.com/plugin.zip',  // URL to download the plugin
+            'tested'       => '6.4.2',                           // WordPress version the plugin is tested up to
+            'requires'     => '6.0',                             // Minimum WordPress version required
+            'author'       => 'Jane Doe',
+            'homepage'     => 'https://example.com/awesome-plugin',
+            'description'  => 'This plugin adds amazing features to your WordPress site.',
+            'changelog'    => "2.4.1 - Fixed minor bugs\n2.4.0 - Added new widget support\n2.3.0 - Improved performance",
+        ];
+        $remote = null;
+        return $remote;
+        if (self::$remote_info_cached) {
+            return self::$remote_info_cache;
+        }
+
         $response = wp_remote_get($this->remote_url, [
             'timeout' => 15,
-            'body'    => [],
         ]);
 
         if (is_wp_error($response)) {
-            return false;
+            self::$remote_info_cache = false;
+        } else {
+            $body = wp_remote_retrieve_body($response);
+            self::$remote_info_cache = json_decode($body);
         }
 
-        $body = wp_remote_retrieve_body($response);
-
-        return json_decode($body);
+        self::$remote_info_cached = true;
+        return self::$remote_info_cache;
     }
 
     public function clear_cache($upgrader_object, $options)

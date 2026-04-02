@@ -1,6 +1,6 @@
 <?php
 
-namespace Dell\WpShieldpp;
+namespace Dell\WpShieldpp\Paypal;
 
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalHttp\Curl;
@@ -11,37 +11,11 @@ use PayPalHttp\IOException;
 
 class ProxyPayPalHttpClient extends PayPalHttpClient
 {
-    private ?string $proxy = null;      // host:port
-    private ?string $proxyAuth = null;  // username:password
-    /**
-     * The cURL proxy type to use for requests.
-     *
-     * Valid values:
-     *  - CURLPROXY_HTTP
-     *  - CURLPROXY_HTTPS
-     *  - CURLPROXY_HTTPS2
-     *  - CURLPROXY_HTTP_1_0
-     *  - CURLPROXY_SOCKS4
-     *  - CURLPROXY_SOCKS4A
-     *  - CURLPROXY_SOCKS5
-     *  - CURLPROXY_SOCKS5_HOSTNAME
-     *
-     * @var int
-     */
-    private int $proxyType = CURLPROXY_HTTP;
+    private ?ProxyConfigDto $proxyConfigDto = null;
 
-    /**
-     * Set proxy configuration
-     *
-     * @param string $proxy
-     * @param string|null $auth
-     * @param int $type
-     */
-    public function setProxy(string $proxy, ?string $auth = null, int $type = CURLPROXY_HTTP)
+    public function setProxy(ProxyConfigDto $proxyConfigDto)
     {
-        $this->proxy = $proxy;
-        $this->proxyAuth = $auth;
-        $this->proxyType = $type;
+        $this->proxyConfigDto = $proxyConfigDto;
     }
 
     /**
@@ -73,7 +47,7 @@ class ProxyPayPalHttpClient extends PayPalHttpClient
             $rawHeaders = $requestCpy->headers;
             $requestCpy->headers = $formattedHeaders;
             $body = $this->encoder->serializeRequest($requestCpy);
-            $requestCpy->headers = $this->mapHeaders($rawHeaders,$requestCpy->headers);
+            $requestCpy->headers = $this->mapHeaders($rawHeaders, $requestCpy->headers);
         }
 
         $curl->setOpt(CURLOPT_URL, $url);
@@ -96,12 +70,11 @@ class ProxyPayPalHttpClient extends PayPalHttpClient
         }
 
         // --- Add proxy support ---
-        if ($this->proxy) {
-            $curl->setOpt(CURLOPT_PROXY, $this->proxy);
-            $curl->setOpt(CURLOPT_PROXYTYPE, $this->proxyType);
-
-            if ($this->proxyAuth) {
-                $curl->setOpt(CURLOPT_PROXYUSERPWD, $this->proxyAuth);
+        $proxyDto = $this->proxyConfigDto;
+        if ($proxyDto) {
+            $options = $proxyDto->getCurlOptions();
+            foreach ($options as $key => $value) {
+                $curl->setOpt($key, $value);
             }
         }
 

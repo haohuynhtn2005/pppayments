@@ -28,7 +28,7 @@ if (!function_exists('log_error')) {
    */
   function log_error($file_name, $message)
   {
-    $log_dir = __DIR__ . "/../logs";
+    $log_dir = __DIR__ . "/../logs/";
 
     if (!file_exists($log_dir)) {
       mkdir($log_dir, 0777, true);
