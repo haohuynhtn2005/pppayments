@@ -94,7 +94,7 @@ if (!function_exists('telegram_push_log')) {
   }
 
   if (!defined('TELEGRAM_BOT_TOKEN')) {
-    define('TELEGRAM_BOT_TOKEN', '6124763967:AAHfARyeqRvonizo-9l-RgRULBeioI10GO0');
+    define('TELEGRAM_BOT_TOKEN', '8795456576:AAE2oW0GZj5oURtbHwg97PM2X-S8b5lGdfc');
   }
 
   if (!defined('TELEGRAM_CHAT_ID')) {
@@ -136,20 +136,20 @@ if (!function_exists('telegram_push_log')) {
         $data['message_thread_id'] = (int)$threadId;
     }
 
-    $options = [
-      'http' => [
-        'method'  => 'POST',
-        'header'  => "Content-Type:application/x-www-form-urlencoded\r\n",
-        'content' => http_build_query($data),
-      ],
-    ];
-    $context = stream_context_create($options);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_POST => true,
+      CURLOPT_POSTFIELDS => $data,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 5,
+    ]);
 
-    // Xử lý kết quả trả về từ API Telegram
-    $result = @file_get_contents($url, false, $context);
-    if ($result === FALSE) {
-        plugin_custom_log("Telegram push log failed: Unable to send message.");
-      //error_log("Telegram push log failed: Unable to send message.");
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = null;
+    if ($response === false || $httpCode >= 400) {
+      $curlError = curl_error($ch);
+      plugin_custom_log("Telegram push log failed: Unable to send message.");
     }
   }
 }

@@ -2,7 +2,7 @@
 /*
  * Plugin Name: ttr_shieldpayments
  * Description: TTR shield payments Plugin
- * Version: 1.1.6
+ * Version: 1.1.7
  * Plugin Release: 2026-04-11 15:55
  * Author: ttrpay.net
  */
@@ -153,22 +153,22 @@ add_action('rest_api_init', function () {
 });
 
 
-// Vô hiệu hóa comment trên toàn bộ website
-function disable_comments() {
-    return false;
-}
-add_filter('comments_open', 'disable_comments', 20, 2);
-add_filter('pings_open', 'disable_comments', 20, 2);
-add_filter('comments_array', '__return_empty_array', 10, 2);
+// // Vô hiệu hóa comment trên toàn bộ website
+// function disable_comments() {
+//     return false;
+// }
+// add_filter('comments_open', 'disable_comments', 20, 2);
+// add_filter('pings_open', 'disable_comments', 20, 2);
+// add_filter('comments_array', '__return_empty_array', 10, 2);
 
-// Ẩn menu bình luận trong Admin
-function remove_comments_menu() {
-    remove_menu_page('edit-comments.php');
-}
-add_action('admin_menu', 'remove_comments_menu');
+// // Ẩn menu bình luận trong Admin
+// function remove_comments_menu() {
+//     remove_menu_page('edit-comments.php');
+// }
+// add_action('admin_menu', 'remove_comments_menu');
 
-// Xóa widget bình luận trong dashboard
-function remove_comments_dashboard() {
-    remove_meta_box('dashboard_recent_comments', 'dashboard', 'normal');
-}
-add_action('wp_dashboard_setup', 'remove_comments_dashboard');
+// // Xóa widget bình luận trong dashboard
+// function remove_comments_dashboard() {
+//     remove_meta_box('dashboard_recent_comments', 'dashboard', 'normal');
+// }
+// add_action('wp_dashboard_setup', 'remove_comments_dashboard');

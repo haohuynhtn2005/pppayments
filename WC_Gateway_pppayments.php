@@ -81,7 +81,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
 
     public $current_currency;
     public $multi_currency_enabled;
-    public $enabled;
     public $btn_img;
 
     public $homeurl;
@@ -118,7 +117,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $this->btn_img                 = apply_filters('woocommerce_ppcp_btn', plugins_url('assets/images/btn.png', __FILE__));
         $this->order_button_text      = 'Pay Now';
         $this->notify_url             = WC()->api_request_url('wc_shieldpp_ipn');
-        $this->enabled = 'yes';
 
         // Load the settings.
         $this->init_form_fields();
@@ -473,7 +471,9 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      */
     public function is_available()
     {
-        return true;
+        $isAvailable = $this->enabled == 'yes';
+        // $isAvailable = true;
+        return $isAvailable;
         $is_acitive = false;
 
         $shield_info = $this->getShieldInfo();
