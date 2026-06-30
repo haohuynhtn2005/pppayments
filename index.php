@@ -2,7 +2,7 @@
 /*
  * Plugin Name: ttr_shieldpayments
  * Description: TTR shield payments Plugin
- * Version: 1.1.7
+ * Version: 1.1.8
  * Plugin Release: 2026-04-11 15:55
  * Author: ttrpay.net
  */

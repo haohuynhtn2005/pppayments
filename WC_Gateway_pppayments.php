@@ -49,15 +49,19 @@ use PayPal\Api\MerchantInfo;
 use PayPal\Api\ShippingInfo;
 
 //v2
+use PayPalHttp\HttpException;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
+use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Payments\CapturesGetRequest;
+
 use Dell\WpShieldpp\ConfigFormField;
 use Dell\WpShieldpp\Paypal\ProxyPayPalHttpClient;
 use Dell\WpShieldpp\Paypal\ProxyConfigDto;
+use Dell\WpShieldpp\Response\FailedResponseDto;
 
 if (! defined('ABSPATH')) {
     exit; // Exit if accessed directly.
@@ -177,6 +181,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         //add_action('woocommerce_api_wc_shieldpp_invoice', array($this, 'invoice')); #http://domain.com/wc-api/wc_shieldpp_invoice/
         add_action('woocommerce_api_woocomerce_paypal_gateway', [ $this, 'handle_paypal_return' ]);
         add_action('woocommerce_api_wc_shieldpp_addorder', array($this, 'add_custom_order')); #http://domain.com/wc-api/wc_shieldpp_addorder/
+        add_action('woocommerce_api_wc_shieldpp_getorder', [$this, 'get_order']); #http://domain.com/wc-api/wc_shieldpp_getorder/
         add_action('woocommerce_api_wc_shieldpp_ipn', array($this, 'webhook_ipn')); #http://domain.com/wc-api/wc_shieldpp_ipn/
 
         //TODO:check unused or not
@@ -1031,6 +1036,81 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
     }
 
+    public function get_order()
+    {
+        try {
+            $rawOrderId = $_GET['order_id'] ?? null;
+            $orderId = (int)$rawOrderId;
+            if (!$orderId) {
+                $this->failedResponse(
+                    new FailedResponseDto('Order ID is required'),
+                    400
+                );
+            }
+
+            $post = get_post($orderId);
+            if (!$post) {
+                $this->failedResponse(
+                    new FailedResponseDto('Order not found'),
+                    404
+                );
+            }
+
+            $rawPaypalPaymentLink = get_post_meta($orderId, 'cs_pp_payment_link', true);
+            // $rawPaypalPaymentLink = '';
+            $paypalPaymentLink = (string) $rawPaypalPaymentLink;
+            $rawQuery = parse_url($paypalPaymentLink, PHP_URL_QUERY);
+            $query = (string) $rawQuery;
+            parse_str($query, $params);
+            $token = $params['token'] ?? null;
+
+            $paypalOrderId = (string) $token;
+            if (!$paypalOrderId) {
+                $this->failedResponse(
+                    new FailedResponseDto('Paypal order ID not found'),
+                    422
+                );
+            }
+
+            $request = new OrdersGetRequest($paypalOrderId);
+            $client = $this->get_paypal_client_type_2();
+            $response = $client->execute($request);
+            $result = $response->result;
+            $res = [
+                'status' => true,
+                'data' => $result,
+            ];
+            wp_send_json($res, 200);
+        } catch (HttpException $e) {
+            $res = [
+                'status' => false,
+                'msg' => $e->getMessage()
+            ];
+            if ($e->statusCode != 404) {
+                $message = "Error:\n";
+                $message .= "Message: Error in get_order" . $e->getMessage() . "\n";
+                $message .= "File: " . $e->getFile() . "\n";
+                $message .= "Line: " . $e->getLine() . "\n";
+                plugin_custom_log($message);
+                telegram_push_log($message);
+            }
+            wp_send_json($res, $e->statusCode);
+        } catch (Exception $e) {
+            $message = "Error:\n";
+            $message .= "Message: Error in get_order" . $e->getMessage() . "\n";
+            $message .= "File: " . $e->getFile() . "\n";
+            $message .= "Line: " . $e->getLine() . "\n";
+            plugin_custom_log($message);
+            telegram_push_log($message);
+
+            $res = [
+                'status' => false,
+                'msg' => $e->getMessage()
+            ];
+            wp_send_json($res, 500);
+        }
+    }
+
     private function getSubnetIp($ip = null)
     {
         if(is_null($ip)) {
@@ -1632,5 +1712,24 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $client->setProxy($proxyDto);
 
         return $client;
+    }
+
+    private function failedResponse(FailedResponseDto $dto, int $status): never
+    {
+        $res = [
+            'status' => false,
+            'msg'    => $dto->msg,
+        ];
+
+        if ($dto->code !== null) {
+            $res['code'] = $dto->code;
+        }
+
+        if ($dto->data !== null) {
+            $res['data'] = $dto->data;
+        }
+
+        wp_send_json($res, $status);
+        exit;
     }
 }
