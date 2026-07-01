@@ -947,7 +947,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
 
             // Change the product price
             $product->set_price($product_price);
-            $product->set_name($product_name);
             $order->add_product($product, 1, $cart_item_data);
             $order->set_total($product_price);
 
