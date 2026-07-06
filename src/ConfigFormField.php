@@ -35,6 +35,7 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
+
       'SOAP_API' => array(
         'title' => __('API User', 'ttr_shield_payments'),
         'type' => 'text',
@@ -56,6 +57,7 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
+
       'path' => array(
         'title' => __('Return URL', 'ttr_shield_payments'),
         'type' => 'text',
@@ -63,7 +65,6 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
-
       'get_version' => array(
         'title' => __('Paypal Version', 'ttr_shield_payments'),
         'type' => 'multiselect',
@@ -85,7 +86,6 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
-
       'completedmess' => array(
         'title' => __('Completed Message', 'ttr_shield_payments'),
         'type' => 'text',
@@ -93,7 +93,6 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
-
       'contact_page_link' => array(
         'title' => __('Contact page', 'ttr_shield_payments'),
         'type' => 'text',
@@ -110,13 +109,25 @@ class ConfigFormField
         'default' => 'true',
         'description' => __('Log events, such as trade status.', 'ttr_shield_payments')
       ),
-
       'testmode' => array(
         'title' => __('Test Mode', 'ttr_shield_payments'),
         'type' => 'checkbox',
         'label' => __('Enable / Disable', 'ttr_shield_payments'),
         'default' => 'true',
         'description' => __('Enable / Disable test mode.', 'ttr_shield_payments')
+      ),
+
+      'invoice_id_prefix' => array(
+        'title' => __('Invoice Prefix', 'ttr_shield_payments'),
+        'type' => 'text',
+        'description' =>
+          __(
+            'Add a unique prefix to invoice numbers for site-specific tracking (recommended).',
+            'ttr_shield_payments'
+          ),
+        'default' => self::genInvoicePrefix(),
+        'default' => self::genRandomInvoicePrefix(),
+        'default' => '',
       ),
       ...self::getProxyFields()
     );
@@ -224,6 +235,36 @@ class ConfigFormField
     ];
 
     return $data;
+  }
+
+  /**
+   * From WooCommerce PayPal Payments
+   * wcgateway.settings.invoice-prefix
+   * @return string
+   */
+  public static function genInvoicePrefix(): string
+  {
+    $site_url = get_site_url(get_current_blog_id());
+    $hash = md5($site_url);
+    $letters = preg_replace('~\d~', '', $hash) ?? '';
+    $prefix = substr($letters, 0, 6);
+    return $prefix ? $prefix . '-' : '';
+  }
+
+  /**
+   * From WooCommerce PayPal Payments
+   * wcgateway.settings.invoice-prefix-random
+   * @return string
+   */
+  private static function genRandomInvoicePrefix()
+  {
+    'wcgateway.settings.invoice-prefix-random';
+    $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $prefix = '';
+    for ($i = 0; $i < 6; $i++) {
+      $prefix .= $characters[wp_rand(0, strlen($characters) - 1)];
+    }
+    return $prefix . '-';
   }
 
 }

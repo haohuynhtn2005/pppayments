@@ -1,10 +1,10 @@
 <?php
 namespace Dell\WpShieldpp\Paypal;
 
-class PaymentNvpService
+class PaypalNvpService
 {
   public function __construct(
-    private string $endpoint,
+    private bool $isTestMode,
     private string $apiUser,
     private string $apiPassword,
     private string $apiSignature,
@@ -17,7 +17,7 @@ class PaymentNvpService
     $gateway = $gateways['pppayments'] ?? null;
     ### Check order status
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $this->endpoint);
+    curl_setopt($ch, CURLOPT_URL, $this->getApiUrl());
     curl_setopt($ch, CURLOPT_VERBOSE, 1);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
@@ -26,7 +26,6 @@ class PaymentNvpService
 
     // Optional but often useful for SOCKS
     curl_setopt($ch, CURLOPT_HTTPPROXYTUNNEL, false);
-
 
     // NVPRequest for submitting to server
     $nvpreq = http_build_query([
@@ -41,7 +40,6 @@ class PaymentNvpService
     $response = curl_exec($ch);
 
     //telegram_push_log("rsp2: ". print_r($response, true));
-
     $nvpResArray = $this->deformatNVP($response);
     curl_close($ch);
 
@@ -49,6 +47,13 @@ class PaymentNvpService
     return $or_status;
   }
 
+  private function getApiUrl() {
+    $url = 'https://api-3t.paypal.com/nvp';
+    if ($this->isTestMode) {
+      $url = 'https://api-3t.sandbox.paypal.com/nvp';
+    }
+    return $url;
+  }
 
   private function deformatNVP($nvpstr)
   {

@@ -15,7 +15,7 @@
             <p>Thank you for your payment. Your transaction has been completed.</p>
             <p class="italic fs-12">Please check your <strong>messages, email inbox, and spam folder</strong> for confirmation.</p>
             <p class="bold" style="color: red">DO NOT OPEN A DISPUTE/CHARGEBACK</p>
-            <p>if you have any questions or concerns. Please <a href="<?php echo $this->contact_page_link ?>" style="color: #4299e1">contact</a> to get help!</p>
+            <p>if you have any questions or concerns. Please <a href="<?php echo $contact_page_link ?>" style="color: #4299e1">contact</a> to get help!</p>
             <p><img src="<?php echo plugin_dir_url(__FILE__) . '../assets/images/loading_spinner_large.gif' ?>" style="width: 50px" /></p>
             <p class="redirect">You will be redirected shortly...</p>
             <p class="italic fs-12"><a href="<?php echo $redirectUrl ?>" title="Success link" style="font-weight: bold; color: red">Click here</a>

@@ -22,10 +22,6 @@ if(!function_exists('get_random_wc_api_endpoint')) {
 
 
 if (!function_exists('log_error')) {
-
-  /**
-   * 
-   */
   function log_error($file_name, $message)
   {
     $log_dir = __DIR__ . "/../logs/";
@@ -43,18 +39,15 @@ if (!function_exists('log_error')) {
 }
 
 if(!function_exists('convertSiteUrlToSiteName')) {
-    
     function convertSiteUrlToSiteName($homeUrl)
     {
         $parsedUrl = parse_url($homeUrl);
-
         $host = $parsedUrl['host'] ?? '';
-        
         $name = '';
         if(preg_match('/(.*?)\.(.*?)/', $host, $m)) {
           $name = ucfirst($m[1]);
         }
-        
+
         return $name;
     }
 }
@@ -62,26 +55,17 @@ if(!function_exists('convertSiteUrlToSiteName')) {
 if (!function_exists('plugin_custom_log')) {
   function plugin_custom_log($message = '', $fileName = '')
   {
-
     if (is_array($message) || is_object($message)) {
         $message = print_r($message, true);
     }
 
-    // Lấy đường dẫn thư mục của file hiện tại (trong plugin)
     $plugin_dir = plugin_dir_path(__FILE__);
-
-    // Tạo thư mục logs nếu chưa có
     $log_dir = $plugin_dir . '../logs/';
-    
-   // var_dump($log_dir);
     if (!file_exists($log_dir)) {
         mkdir($log_dir, 0755, true);
     }
 
-    // File log theo ngày
     $log_file = $log_dir . 'log-' . date('Y-m-d') . '.log';
-
-    // Ghi log
     $formatted_message = '[' . date('H:i:s') . '] ' . $message . PHP_EOL;
     file_put_contents($log_file, $formatted_message, FILE_APPEND);
   }
@@ -214,57 +198,11 @@ if (!function_exists('postCURL')) {
   }
 }
 
-if(!function_exists('getUserIP')) {
-  /**
-   * Get urser IP
-   */
-  function getUserIP()
-	{
-		// Get real visitor IP behind CloudFlare network
-		if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
-				  $_SERVER['REMOTE_ADDR'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
-				  $_SERVER['HTTP_CLIENT_IP'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
-		}
-		$client  = @$_SERVER['HTTP_CLIENT_IP'];
-		$forward = @$_SERVER['HTTP_X_FORWARDED_FOR'];
-		$remote  = $_SERVER['REMOTE_ADDR'];
-
-		if(filter_var($client, FILTER_VALIDATE_IP))
-		{
-			$ip = $client;
-		} elseif(filter_var($forward, FILTER_VALIDATE_IP)) {
-			$ip = $forward;
-		} else {
-			$ip = $remote;
-		}
-		return $ip;
-	}
-}
-
-if(!function_exists('genSignature')) {
-    function genSignature($key, $paymentCode)
-    {
-        $str = getUserIP() . $key . $paymentCode;
-        
-        $genSignLog = [
-            'id' => getUserIP(),
-            'key' => $key,
-            'paymentCode' => $paymentCode
-        ];
-        
-        telegram_push_log('signgen: ' . print_r($genSignLog, true));
-        
-        return md5($str);
-    }
-}
-
 if(!function_exists('pmCodeEncryptLinkToCode')) {
     function pmCodeEncryptLinkToCode(string $link)
     {
         $encode = base64url_encode($link);
-
         $encode = strrev($encode);
-        
         return $encode;
     }
 }
@@ -273,7 +211,6 @@ if(!function_exists('pmCodeDecryptToLink')) {
     function pmCodeDecryptToLink(string $code)
     {
         $decrypted = base64url_decode(strrev($code));
-        
         return $decrypted;
     }
 }
@@ -295,7 +232,6 @@ if(!function_exists('base64url_decode')) {
 }
 
 if(!function_exists('ip_in_range')) {
-    
     function ip_in_range( $ip, $range )
     {
     	if ( strpos( $range, '/' ) == false ) {
@@ -310,21 +246,3 @@ if(!function_exists('ip_in_range')) {
     	return ( ( $ip_decimal & $netmask_decimal ) == ( $range_decimal & $netmask_decimal ) );
     }
 }
-
-if(!function_exists('redirect_url')) {
-    function redirect_url($url, $second = 0)
-    {
-        if ($second != 0) {
-            $second = $second * 1000;
-            echo "<script>
-                setTimeout(function() {
-                    window.location.href = '$url';
-                }, {$second}); // 5000ms
-            </script>";
-        } else {
-            echo "<script>window.location.href='" . $url . "';</script>";
-        }
-        exit;
-    }
-}
-

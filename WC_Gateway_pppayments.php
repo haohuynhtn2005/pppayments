@@ -6,47 +6,13 @@
  * @package WooCommerce\Gateways
  */
 
+// Exit if accessed directly.
+if (!defined( 'ABSPATH' )) {
+    exit;
+}
+
 include_once(plugin_dir_path(__FILE__) . '/libs/shield_api.php');
 include_once(plugin_dir_path(__FILE__) . '/vendor/autoload.php');
-
-
-### PAYPAL API LIBRARY
-### API v1
-use PayPal\Api\Amount;
-use PayPal\Api\Payer;
-use PayPal\Api\Payment;
-use PayPal\Api\Transaction;
-use PayPal\Api\RedirectUrls;
-
-### API v2
-//use PayPal\Http\Environment\SandboxEnvironment;
-//use PayPal\Http\Environment\ProductionEnvironment;
-//use PayPal\Http\PayPalClient;
-
-// use PayPal\Http\AccessTokenRequest;
-// use PayPal\Checkout\Requests\OrderAuthorizeRequest;
-// use PayPal\Checkout\Requests\OrderCaptureAuth;
-// use PayPal\Checkout\Requests\OrderCaptureRequest;
-// use PayPal\Checkout\Requests\OrderRefund;
-// use PayPalHttp\HttpException;
-
-// Import namespace
-// use PayPal\Checkout\Requests\OrderCreateRequest;
-// use PayPal\Checkout\Requests\OrderShowRequest;
-// use PayPal\Checkout\Orders\AmountBreakdown;
-// use PayPal\Checkout\Orders\ApplicationContext;
-// use PayPal\Checkout\Orders\Item;
-// use PayPal\Checkout\Orders\Order;
-// use PayPal\Checkout\Orders\PurchaseUnit;
-
-
-### API Invoice
-use PayPal\Api\BillingInfo;
-use PayPal\Api\Currency;
-use PayPal\Api\Invoice;
-use PayPal\Api\InvoiceItem;
-use PayPal\Api\MerchantInfo;
-use PayPal\Api\ShippingInfo;
 
 //v2
 use PayPalHttp\HttpException;
@@ -59,111 +25,86 @@ use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Payments\CapturesGetRequest;
 
 use Dell\WpShieldpp\ConfigFormField;
+use Dell\WpShieldpp\Helper\ClientIpHelper;
+use Dell\WpShieldpp\Paypal\PaypalNvpService;
 use Dell\WpShieldpp\Paypal\ProxyPayPalHttpClient;
 use Dell\WpShieldpp\Paypal\ProxyConfigDto;
+use Dell\WpShieldpp\Paypal\PaypalType0;
+use Dell\WpShieldpp\Paypal\PaypalType1;
+use Dell\WpShieldpp\Paypal\PaypalType2;
+use Dell\WpShieldpp\Paypal\WCGatewayPpaymentsPluginConfigDto;
+use Dell\WpShieldpp\Service\PostService;
+use Dell\WpShieldpp\Service\ReportDataService;
+use Dell\WpShieldpp\Service\ShieldWebHookService;
 use Dell\WpShieldpp\Response\FailedResponseDto;
-
-if (! defined('ABSPATH')) {
-    exit; // Exit if accessed directly.
-}
 
 class WC_Gateway_pppayments extends WC_Payment_Gateway
 {
+    private $path;
 
-    /**
-     * Gateway instructions that will be added to the thank you page and emails.
-     *
-     * @var string
-     */
-    public $instructions;
-    public $version;
-    public $path;
+    private $apiVersion;
+    private $debug;
+    private $testmode;
 
-    public $api_url;
-    public $merchant_key;
-    public $shield_key;
+    private $invoiceIdPrefix;
+    private $business;
+    private $clientId;
+    private $Secret;
 
-    public $current_currency;
-    public $multi_currency_enabled;
-    public $btn_img;
+    private $soap_api;
+    private $soap_pass;
+    private $soap_signature;
 
-    public $homeurl;
-    public $apiVersion, $clientId, $Secret;
-    public $soap_api;
-    public $soap_pass;
-    public $soap_signature;
-    public $mode;
-    public $API_Endpoint;
-    public $link_invoice;
-    public $business;
-    public $waitmess;
-    public $completedmess;
-    public $debug;
-    public $testmode;
-    public $contact_page_link;
-    public $notify_url;
-    public $hidePaymentUrl = true;
-
-    public $ip_secret = 'b8c7fda7d4d08c118b2e7250fc101cb4';
+    private $waitmess;
+    private $completedmess;
+    private $contact_page_link;
+    private $ip_secret = 'b8c7fda7d4d08c118b2e7250fc101cb4';
 
     public function __construct()
     {
-        $this->current_currency = get_option('woocommerce_currency');
-        $this->multi_currency_enabled = in_array('woocommerce-multilingual/wpml-woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))) && get_option('icl_enable_multi_currency') == 'yes';
-
         // WooCommerce required settings
         $this->id                 = 'pppayments';
         $this->method_title       = __('TTR Paypal payment', 'ttr_shield_payments');
         $this->method_description = __('Payment with ttr paypal method.', 'ttr_shield_payments');
         $this->has_fields = true;
-        $this->version                 = "124";
 
-        $this->btn_img                 = apply_filters('woocommerce_ppcp_btn', plugins_url('assets/images/btn.png', __FILE__));
+        $this->title                  = '';
+        $this->description            = '';
         $this->order_button_text      = 'Pay Now';
-        $this->notify_url             = WC()->api_request_url('wc_shieldpp_ipn');
 
         // Load the settings.
-        $this->init_form_fields();
         $this->init_settings();
+        $this->init_form_fields();
 
-        // Get settings.
-        $this->title                 = $this->get_option('title');
-        $this->homeurl                 = get_option('siteurl');
-
-        $this->merchant_key         = get_option('cs_merchant_key');
-        $this->shield_key           = get_option('cs_shield_key');
-        $this->api_url              = get_option('cs_api_url');
-
-
-        $this->description            = $this->get_option('description');
-        $this->instructions           = $this->get_option('instructions');
-
-        $get_version                 = $this->get_option('get_version');
-        $this->apiVersion            = $get_version[0] ?? 'v2';
-
-        $this->clientId             = $this->get_option('API');
-        $this->Secret                 = $this->get_option('Secret');
-
-        $this->soap_api             = $this->get_option('SOAP_API');
-        $this->soap_pass             = $this->get_option('SOAP_PASS');
-        $this->soap_signature         = $this->get_option('SOAP_Signature');
-        $this->mode                 = 'LIVE';
-        $this->API_Endpoint         = "https://api-3t.paypal.com/nvp";
-        $this->link_invoice         = "https://www.paypal.com/invoice/p/#";
+        // $this->version                 = "124";
+        // $this->btn_img                = apply_filters('woocommerce_ppcp_btn', plugins_url('assets/images/btn.png', __FILE__));
+        // $this->notify_url             = WC()->api_request_url('wc_shieldpp_ipn');
+        // $this->current_currency = get_option('woocommerce_currency');
+        // $this->multi_currency_enabled = in_array('woocommerce-multilingual/wpml-woocommerce.php', apply_filters('active_plugins', get_option('active_plugins'))) && get_option('icl_enable_multi_currency') == 'yes';
 
         $this->path                 = $this->get_option('path');
+        $get_version                = $this->get_option('get_version');
+        $this->apiVersion           = $get_version[0] ?? 'v2';
+
+        $this->invoiceIdPrefix      = $this->get_option('invoice_id_prefix');
+        $this->debug                = $this->get_option('debug');
+        $this->testmode             = $this->get_option('testmode');
+
         $this->business             = $this->get_option('business');
-        $this->contact_page_link    = $this->get_option('contact_page_link');
+        $this->clientId             = $this->get_option('API');
+        $this->Secret               = $this->get_option('Secret');
+
+        $this->soap_api             = $this->get_option('SOAP_API');
+        $this->soap_pass            = $this->get_option('SOAP_PASS');
+        $this->soap_signature       = $this->get_option('SOAP_Signature');
 
         $this->waitmess             = $this->get_option('waitmess');
-        $this->completedmess         = $this->get_option('completedmess');
-        $this->instructions         = $this->completedmess;
+        $this->completedmess        = $this->get_option('completedmess');
+        $this->contact_page_link    = $this->get_option('contact_page_link');
+        // $this->config = WCGatewayPpaymentsPluginConfigDto::fromOptions(
+        //     fn (string $key) => $this->get_option($key)
+        // );
 
-        // $this->order_prefix_enabled = $this->get_option('order_prefix_enabled');
-        // $this->order_prefix = $this->get_option('orderPrefix');
-        $this->debug                 = $this->get_option('debug');
-
-        $this->testmode = $this->get_option('testmode');
         if ('yes' == $this->testmode) {
             $this->business = 'sb-2yix216053012@business.example.com';
             $this->clientId = 'AQ3VGF0YRugRrryvM4vRKb2ZnAnETjzLutbWC9-sI4A6UyfNGs8pnV3gI5POJDQ_O4ryZ7PotrqwQLCA';
@@ -172,26 +113,24 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             $this->soap_api = 'sb-2yix216053012_api1.business.example.com';
             $this->soap_pass = 'ZXEC5DAHMFSR4AUU';
             $this->soap_signature = 'AI9f6AX0wv.h1aOmx81yllsPg4PgAkj5Gy0X3rf7jWL3xzRGZ.kVQ6oE';
-            $this->mode = 'sandbox';
-            $this->API_Endpoint = "https://api-3t.sandbox.paypal.com/nvp";
-            $this->link_invoice = "https://www.sandbox.paypal.com/invoice/p/#";
         }
 
         // Actions.
         //add_action('woocommerce_api_wc_shieldpp_invoice', array($this, 'invoice')); #http://domain.com/wc-api/wc_shieldpp_invoice/
         add_action('woocommerce_api_woocomerce_paypal_gateway', [ $this, 'handle_paypal_return' ]);
-        add_action('woocommerce_api_wc_shieldpp_addorder', array($this, 'add_custom_order')); #http://domain.com/wc-api/wc_shieldpp_addorder/
+        #http://domain.com/wc-api/wc_shieldpp_addorder/
+        add_action('woocommerce_api_wc_shieldpp_addorder', array($this, 'add_custom_order'));
         add_action('woocommerce_api_wc_shieldpp_getorder', [$this, 'get_order']); #http://domain.com/wc-api/wc_shieldpp_getorder/
-        add_action('woocommerce_api_wc_shieldpp_ipn', array($this, 'webhook_ipn')); #http://domain.com/wc-api/wc_shieldpp_ipn/
+        add_action('woocommerce_api_wc_shieldpp_ipn', array($this, 'send_ipn_webhook')); #http://domain.com/wc-api/wc_shieldpp_ipn/
 
         //TODO:check unused or not
         add_action('woocommerce_api_wc_shieldpp_update_setting', array($this, 'reup_settings')); #http://domain.com/wc-api/wc_shieldpp_update_setting/ 
         add_action('woocommerce_api_wc_shieldpp_setting', array($this, 'shieldpp_setting')); #http://domain.com/wc-api/wc_shieldpp_setting
 
         add_action('woocommerce_api_wc_ppcp_return', array($this, 'return_page')); #http://domain.com/wc-api/wc_ppcp_return
-        add_action('woocommerce_api_wc_return_url', array($this, 'capturePayment')); #http://domain.com/wc-api/wc_ppcp_return
-        add_action('woocommerce_api_wc_redirect_payment_link', array($this, 'redirectPaymentLink')); #http://domain.com/wc-api/redirect_payment_link
-        
+        add_action('woocommerce_api_wc_return_url', array($this, 'handle_return')); #http://domain.com/wc-api/wc_ppcp_return
+        add_action('woocommerce_api_wc_redirect_payment_link', array($this, 'redirect_payment_link')); #http://domain.com/wc-api/redirect_payment_link
+
         //generate contat page
         add_action('woocommerce_api_contact', array($this, 'cs_contact')); #http://domain.com/wc-api/contact
         add_action('woocommerce_api_get-in-touch', array($this, 'cs_contact')); #http://domain.com/wc-api/get-in-touch
@@ -203,7 +142,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         add_action('woocommerce_api_send-us-a-message', array($this, 'cs_contact')); #http://domain.com/wc-api/send-us-a-message
         add_action('woocommerce_api_need-help', array($this, 'cs_contact')); #http://domain.com/wc-api/need-help
         add_action('woocommerce_api_support-center', array($this, 'cs_contact')); #http://domain.com/wc-api/support-center
-        
+
         add_action('woocommerce_api_process', array($this, 'cs_process')); #http://domain.com/wc-api/wc_ppcp_return
 
         add_action('woocommerce_api_wc_cancel', array($this, 'cancel')); #http://domain.com/wc-api/wc_cancel
@@ -214,94 +153,34 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         add_filter('woocommerce_payment_complete_order_status', array($this, 'change_payment_complete_order_status'), 10, 3); //page
         // Customer Emails.
         add_action('woocommerce_email_before_order_table', array($this, 'email_instructions'), 10, 3); //Page email
-        add_action('woocommerce_api_wc_ppcp_message', array($this, 'pending'));
     }
 
     /**
      * Initialise Gateway Settings Form Fields
-     *
-     * @access public
-     * @return void
      */
     public function init_form_fields()
     {
         $this->form_fields = ConfigFormField::getFormFields();
-        // For WC2.2+
         if (class_exists('WC_Logger')) {
-            $logger = wc_get_logger();
             $log_source = 'ttr_shield_payments';
-            
-            // Ghi log thử để kiểm tra
-            $logger->info('Logging initialized for ttr_shield_payments.', ['source' => $log_source]);
-        
             $this->form_fields['debug']['description'] = sprintf(
-                __('Log events, such as trade status. View logs in WooCommerce > Status > Logs (file: %s).', 'ttr_shield_payments'), 
+                __('Log events, such as trade status. View logs in WooCommerce > Status > Logs (file: %s).', 'ttr_shield_payments'),
                 $log_source
             );
+        }
+        $key = "invoice_id_prefix";
+        $invoicePrefix = $this->get_option($key);
+        if (is_null($invoicePrefix)) {
+            $generatedPrefix = ConfigFormField::genInvoicePrefix();
+            $this->update_option($key, $generatedPrefix);
         }
     }
 
     public function get_icon()
     {
-        $icon_html = 'Paypal <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-color.svg" alt="Paypal" width="149px" height="36px" />';
+        $icon_html =
+            'Paypal <img src="https://www.paypalobjects.com/paypal-ui/logos/svg/paypal-color.svg" alt="Paypal" width="149px" height="36px" />';
         return $icon_html;
-    }
-
-    public function redirectPaymentLink()
-    {
-        try {
-            $pmcode = isset($_GET['pmcode']) ? $_GET['pmcode'] : '';
-
-            if (empty($pmcode)) {
-                wp_send_json(array(
-                    'status'  => false,
-                    'message' => 'Missing required parameters',
-                ), 400);
-            }
-
-            $paymentLink = pmCodeDecryptToLink($pmcode);
-            if (!preg_match('/paypal/', $paymentLink)) {
-                wp_send_json(array(
-                    'status'  => false,
-                    'message' => 'Payment link is error',
-                ), 400);
-            }
-?>
-            <html>
-
-            <head>
-                <title>Waiting for redirection to the payment link.</title>
-            </head>
-
-            <body>
-                <div style="width: 100%; text-align: center">
-                    <p><img src="<?php echo plugin_dir_url(__FILE__) . 'assets/images/loading_spinner_large.gif' ?>" style="width: 50px" /></p>
-                    <p>Waiting for redirection to the payment link.</p>
-                    <p><a href="<?php echo $paymentLink ?>" title="Payment link" style="font-weight: bold; color: red">Click here</a>
-                        if the system does not redirect automatically.</p>
-                </div>
-            </body>
-
-            </html>
-        <?php
-            //telegram_push_log("random_code: $random_code, signature: {$sign}");
-
-            redirect_url($paymentLink, 2);
-        } catch (\Exception $e) {
-            $message = "Error:\n";
-            $message .= "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
-
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-            );
-            return $res;
-        }
-        exit();
     }
 
     public function shieldpp_setting()
@@ -374,74 +253,77 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             
             $this->update_option($key, $value);
         }
-		/* end update paypal */
-		/* start update stripes */
-// 		$data_stripes = array(
-// 			'title'             => $data['stripes']['settings']['title'] ?? 'Stripe Payment',
-// 			'enabled'			=> isset($data['stripes']['active']) && $data['stripes']['active'] ? 'yes' : 'no',
-//             'client_id'    		=> $data['stripes']['settings']['stripes_client_id'] ?? '',
-//             'secret'            => $data['stripes']['settings']['stripes_secret'] ?? '',
-//             'endpoint_secret'   => $data['stripes']['settings']['stripes_endpoint_secret'] ?? '',
-//             'type'       		=> $data['stripes']['settings']['stripes_type'] ?? '',
-//             'testmode'       => isset($data['stripes']['is_sandbox']) && $data['stripes']['is_sandbox'] ? 'yes' : 'no',
-//         );
-		
-// 		$allowed_settings = array(
-// 			'title'			  => '',
-// 			'enabled'		  => 'no',
-//             'client_id'       => '',
-//             'secret'          => '',
-//             'endpoint_secret' => '',
-//             'type'            => '',
-// 			'testmode'        => '',
-//         );
-// 		$cs_stripe = new CS_STRIPE();
-// 		foreach ($allowed_settings as $key => $default_value) {
-//             $value = isset($data_stripes[$key]) ? sanitize_text_field($data_stripes[$key]) : $default_value;
-//             $cs_stripe->update_option($key, $value);
-//         }
-		/* end stripes */
+        // end update paypal
+        // start update stripes
+        // $data_stripes = array(
+        //     'title' =>
+        //         $data['stripes']['settings']['title'] ?? 'Stripe Payment',
+        //     'enabled' =>
+        //         isset($data['stripes']['active']) && $data['stripes']['active']
+        //         ? 'yes' : 'no',
+        //     'client_id' =>
+        //         $data['stripes']['settings']['stripes_client_id'] ?? '',
+        //     'secret' =>
+        //         $data['stripes']['settings']['stripes_secret'] ?? '',
+        //     'endpoint_secret' =>
+        //         $data['stripes']['settings']['stripes_endpoint_secret'] ?? '',
+        //     'type' =>
+        //         $data['stripes']['settings']['stripes_type'] ?? '',
+        //     'testmode' =>
+        //         isset($data['stripes']['is_sandbox']) && $data['stripes']['is_sandbox'] ? 'yes' : 'no',
+        // );
+
+        // $allowed_settings = array(
+        //     'title' => '',
+        //     'enabled' => 'no',
+        //     'client_id' => '',
+        //     'secret' => '',
+        //     'endpoint_secret' => '',
+        //     'type' => '',
+        //     'testmode' => '',
+        // );
+        // $cs_stripe = new CS_STRIPE();
+        // foreach ($allowed_settings as $key => $default_value) {
+        //     $value = isset($data_stripes[$key]) ? sanitize_text_field($data_stripes[$key])
+        //         : $default_value;
+        //     $cs_stripe->update_option($key, $value);
+        // }
+        // end stripes
         wp_send_json_success(array('message' => 'Shield settings have been updated'), 200);
     }
 
     public function reup_settings()
     {
-        if (!empty($_REQUEST['mkey']) && !empty($_REQUEST['skey']) && !empty($_REQUEST['url'])) {
-            $configs = array(
-                'cs_merchant_key' => trim($_REQUEST['mkey']),
-                'cs_shield_key'   => trim($_REQUEST['skey']),
-                'cs_api_url'      => trim($_REQUEST['url']),
-            );
-
-            telegram_push_log("reup_settings config: " . print_r($configs, true));
-
-            foreach ($configs as $key => $value) {
-                if (!get_option($key)) {
-                    add_option($key, $value, true);
-                } else {
-                    update_option($key, $value, true);
-                }
-            }
-
-            $response = array(
-                'status'          => true,
-                'cs_merchant_key' => get_option('cs_merchant_key'),
-                'cs_shield_key'   => get_option('cs_shield_key'),
-                'cs_api_url'      => get_option('cs_api_url'),
-            );
-
-            wp_send_json($response);
-        } else {
+        if (empty($_REQUEST['mkey']) || empty($_REQUEST['skey']) || empty($_REQUEST['url'])) {
             wp_send_json(array(
                 'status'  => false,
                 'message' => 'Missing required parameters',
             ), 400);
         }
-    }
 
-    /**
-     * 附加到页面上的表单数据
-     */
+        $configs = array(
+            'cs_merchant_key' => trim($_REQUEST['mkey']),
+            'cs_shield_key'   => trim($_REQUEST['skey']),
+            'cs_api_url'      => trim($_REQUEST['url']),
+        );
+        telegram_push_log("reup_settings config: " . print_r($configs, true));
+
+        foreach ($configs as $key => $value) {
+            if (!get_option($key)) {
+                add_option($key, $value, true);
+            } else {
+                update_option($key, $value, true);
+            }
+        }
+
+        $response = array(
+            'status'          => true,
+            'cs_merchant_key' => get_option('cs_merchant_key'),
+            'cs_shield_key'   => get_option('cs_shield_key'),
+            'cs_api_url'      => get_option('cs_api_url'),
+        );
+        wp_send_json($response);
+    }
 
     public function payment_fields()
     {
@@ -479,280 +361,19 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         $isAvailable = $this->enabled == 'yes';
         // $isAvailable = true;
         return $isAvailable;
-        $is_acitive = false;
-
-        $shield_info = $this->getShieldInfo();
-        $shieldStatus = $shield_info['status'] ?? false;
-        if ($shieldStatus) {
-            $shield_gateways = json_decode($shield_info['result']['shield_gateways'], true);
-            $is_acitive = $shield_gateways['paypal']['active'];
-        }
-        return $is_acitive;
-    }
-
-    public function getShieldInfo()
-    {
-        $shieldInfo = get_option('wc_shieldpp_setting');
-        return json_decode($shieldInfo, true);
-    }
-
-    public function capturePayment()
-    {
-        try {
-            /**
-             * Check and enable WC session
-             */
-            $paymentId = $_GET['paymentId'] ?? '';
-            $token = $_GET['token'] ?? '';
-            $payerId = $_GET['PayerID'] ?? '';
-            $sign = $_GET['sign'] ?? '';
-            $orderId = $_GET['orderId'] ?? 0;
-            $transactionId = $paymentId ?? 0;
-            $cs_ref_code = $_GET['csRefCode'] ?? 0;
-            $invoiceID = $_GET['resource']['invoice']['id'] ?? 0;
-    
-            $shield_info = $this->getShieldInfo(); //TODO:Cache
-            $paymentId = $transactionId;
-            //$paypal_settings = array();
-            $shieldStatus = $shield_info['status'] ?? false;
-            if ($shieldStatus == true) {
-                $shield_gateways = json_decode($shield_info['result']['shield_gateways'], true);
-                //$paypal_settings = $shield_gateways['paypal']['settings'];
-            }
-    
-            $cs_success_url = get_post_meta($orderId, 'mc_success_url', true);
-            if (empty($cs_success_url)) {
-                $cs_success_url = $shield_gateways['return_link']['cs_success_url'];
-            }
-    
-            $cs_failed_url = get_post_meta($orderId, 'mc_failed_url', true);
-            if (empty($cs_failed_url)) {
-                $cs_failed_url = $shield_gateways['return_link']['cs_failes_url'];
-            }
-            try {
-                $client = $this->get_paypal_client_type_2();
-
-                ini_set('display_errors', 1);
-                ini_set('display_startup_errors', 1);
-                error_reporting(E_ALL);
-                // echo "<pre>";
-                // var_dump($client); die();
-                $request = new OrdersCaptureRequest($token);
-                
-                $request->prefer('return=representation'); // ✅ Thêm prefer nếu cần dữ liệu chi tiết
-                
-                $response = $client->execute($request);
-            } catch (\PayPalHttp\HttpException $e) {
-                // PayPal API returned error
-                $errorBody = $e->getMessage(); // string
-                $statusCode = $e->statusCode;
-                
-                $message = "PayPal API error during capture:\n";
-                $message .= "StatusCode: $statusCode\n";
-                $message .= "Response: $errorBody\n";
-                plugin_custom_log($message, 'debug.log');
-                telegram_push_log($message);
-                
-                http_response_code($statusCode);
-                if (strpos($errorBody, 'INVALID_RESOURCE_ID') !== false) {
-                    echo json_encode([
-                        'status' => false,
-                        'msg'    => 'Access Denied: Invalid resource ID'
-                    ]);
-                    exit;
-                }
-            
-                echo json_encode([
-                    'status' => false,
-                    'msg'    => 'PayPal API error: ' . $errorBody
-                ]);
-                exit;
-            } catch (\Exception $e) {
-                $message = "Error:\n";
-                $message .= "Message: Error in capturePayment paypal_type = 1: " . $e->getMessage() . "\n";
-                $message .= "File: " . $e->getFile() . "\n";
-                $message .= "Line: " . $e->getLine() . "\n";
-
-                plugin_custom_log($message, 'debug.log');
-                telegram_push_log($message);
-
-                $res = [
-                    'status' => false,
-                    'msg' => $e->getMessage()
-                ];
-
-                return $res;
-            }
-
-            # Parse result
-            $result = $response->result; // 👈 Không cần getBody()
-
-            $payee_email  = $result->purchase_units[0]->payee->email_address ?? '';
-            $buyer_email  = $result->payer->email_address ?? '';
-            $buyer_status = $result->payer->status ?? '';
-
-            $invoice      = $result->purchase_units[0]->payments->captures[0]->invoice_id ?? '';
-            $orderstatus  = $result->purchase_units[0]->payments->captures[0]->status ?? '';
-            $txn_id       = $result->purchase_units[0]->payments->captures[0]->id ?? '';
-
-            $logs = [
-                'apiInfo'     => [
-                    'ppclientId' => $this->clientId,
-                    'ppSecret'   => $this->Secret,
-                ],
-                'payee_email' => $payee_email,
-                'buyer_email' => $buyer_email,
-                'buyer_status'=> $buyer_status,
-                'invoice'     => $invoice,
-                'orderstatus' => $orderstatus,
-                'txn_id'      => $txn_id
-            ];
-
-            $status = '-1'; // default fail
-
-            if ($orderstatus === "COMPLETED") {
-                $status = "1";
-            } elseif ($orderstatus === "PENDING") {
-                $status = "3";
-                $reason = $result->purchase_units[0]->payments->captures[0]->status_details->reason ?? '';
-                $orderstatus .= ": " . $reason;
-
-                if (strtolower($buyer_status) === "verified") {
-                    $status = "1";
-                }
-            }
-
-            telegram_push_log("Logs: " . print_r($logs, true));
-
-        } catch (\Exception $e) {
-            //throw $e;
-            
-            #Logging
-            //file_put_contents($file_logs ,date('Y-m-d H:i:s')." CAN NOT PAY=>".$ex->getMessage().PHP_EOL, FILE_APPEND);
-
-            $message = "Error:\n";
-            $message .= "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
-
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-                'msg' => $e->getMessage()
-            );
-            $this->get_return_url_custom($this->homeurl . "/my-account/");
-            return $res;
-        }
-
-        try {
-            // $or_status = $this->get_nvp_payment_status($txn_id);
-            $or_status = $this->get_capture_status($txn_id);
-            if (strtolower($buyer_status) == "verified") {
-                $or_status = "Completed";
-            }
-            
-            if(preg_match('/(\d+)-(\d+)/', $invoice, $matches)) {
-                $invoice = (int)$matches[1]; //invoice_id
-            }
-            
-            $order = wc_get_order($invoice);
-            
-            $logs2 = [
-                'wc_order_status' => $order->get_status(),
-                'pp_order_status' => $or_status,
-                'invoice_id' => $invoice,
-            ];
-
-            if ($order->get_status() == "pending") {
-                //telegram_push_log("Log2: " . print_r($logs2, true));
-                if ($or_status == "Completed") {
-                    $order->add_order_note(sprintf(__('Payment success (Trans ID: %s)', 'wc-ppcp'), $txn_id));
-                    $order->payment_complete($txn_id);
-                } else if ($or_status == "Pending") {
-                    $order->add_order_note(sprintf(__('Payment success (Trans ID: %s)', 'wc-ppcp'), $txn_id));
-                    $order->update_status('on-hold', __('Processing', 'woocommerce'));
-                } else {
-                    $order->add_order_note(sprintf(__('Payment failed (Trans ID: %s)', 'wc-ppcp'), $txn_id));
-                    $order->update_status('failed', __('Failed', 'woocommerce'));
-                }
-            }
-
-            $customer_ip = get_post_meta($orderId, '_customer_ip_address', true);
-            $subnet = $this->getSubnetIp();
-            $md5 = md5($orderId.$subnet);
-            $logs2['subnet'] = $subnet;
-            $logs2['orderId'] = $orderId;
-            $server_signature = hash_hmac('sha256', $md5, $this->ip_secret);
-            //$logs2['payment_code'] = $payment_code;
-            $logs2['server_signature'] = $server_signature;
-            $logs2['request_sign'] = $sign;
-            $logs2['customer_ip'] = $customer_ip;
-            $logs2['md5'] = $md5;
-            //ip_in_range($customer_ip, $order_ip) != null && 
-            if ($server_signature == $sign) {
-                $redirectUrl = $cs_success_url;
-            } else {
-                $redirectUrl = $this->homeurl . "/my-account/";
-            }
-            
-            $logs2['RedirectUrls'] = $redirectUrl;
-            //telegram_push_log("Log2: " . print_r($logs2, true));
-            
-            if(file_exists(__DIR__ . "/tpl/success-page.php")) {
-                ob_start();
-                require_once __DIR__ . "/tpl/success-page.php";
-                $output = ob_get_clean();
-                
-                if (empty($output)) {
-                    die("Output is empty");
-                }
-                
-                // echo raw output
-                header('Content-Type: text/html');
-                echo $output;
-            }
-            
-            $this->webhook_ipn([
-                'order_id' => $orderId,
-                'paymentStatus' => $or_status,
-                'transaction_id' => $txn_id,
-                'cs_ref_code' => $cs_ref_code,
-                'invoice_id' => $invoice,
-                'payer_email' => $payee_email,
-                'buyer_email' => $buyer_email
-            ]);
-            
-            exit;
-        } catch (\Exception $e) {
-            $message = "Error:\n";
-            $message .= "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
-
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-                'msg' => $e->getMessage()
-            );
-            $this->get_return_url_custom($this->homeurl . "/my-account/");
-            return $res;
-        }
     }
 
     /**
      * Process the payment and return the result.
      *
-     * @param int $order_id Order ID. 
+     * @param int $order_id Order ID.
      * @return array
      */
     public function process_payment($order_id)
     {
         $order = wc_get_order($order_id);
-        $this->getReporterData($order);
+        $reportDataSrv = new ReportDataService();
+        $reportDataSrv->reportData($order);
 
         // add Gateway
         $payment_gateways = WC()->payment_gateways->payment_gateways();
@@ -858,50 +479,51 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
     }
 
-    private function getReporterData($order)
+    public function redirect_payment_link()
     {
-         // Thông tin khách hàng
-        $customer_email = $order->get_billing_email();
-        $customer_first_name = $order->get_billing_first_name();
-        $customer_last_name = $order->get_billing_last_name();
-        $customer_phone = $order->get_billing_phone();
-        $customer_ip = $order->get_customer_ip_address();
+        try {
+            $pmcode = isset($_GET['pmcode']) ? $_GET['pmcode'] : '';
 
-        $billing_address = [
-            'address_1' => $order->get_billing_address_1(),
-            'address_2' => $order->get_billing_address_2(),
-            'city'      => $order->get_billing_city(),
-            'state'     => $order->get_billing_state(),
-            'postcode'  => $order->get_billing_postcode(),
-            'country'   => $order->get_billing_country(),
-        ];
+            if (empty($pmcode)) {
+                wp_send_json(array(
+                    'status'  => false,
+                    'message' => 'Missing required parameters',
+                ), 400);
+            }
 
-        $shipping_address = [
-            'address_1' => $order->get_shipping_address_1(),
-            'address_2' => $order->get_shipping_address_2(),
-            'city'      => $order->get_shipping_city(),
-            'state'     => $order->get_shipping_state(),
-            'postcode'  => $order->get_shipping_postcode(),
-            'country'   => $order->get_shipping_country(),
-        ];
+            $paymentLink = pmCodeDecryptToLink($pmcode);
+            if (!preg_match('/paypal/', $paymentLink)) {
+                wp_send_json(array(
+                    'status'  => false,
+                    'message' => 'Payment link is error',
+                ), 400);
+            }
 
-        telegram_push_log("Reporter Data\n\n".print_r([
-            'email' => $customer_email,
-            'ip' => $customer_ip,
-            'billing' => $billing_address,
-            'shipping' => $shipping_address
-        ], true), null, '86593');
+            extract([
+                'paymentLink' => $paymentLink,
+            ]);
+            ob_start();
+            include __DIR__ . "/tpl/redirect-page.php";
+            $output = ob_get_clean();
+            echo $output;
+            exit();
+        } catch (Exception $e) {
+            $message = "Error:\n";
+            $message .= "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
+            $message .= "File: " . $e->getFile() . "\n";
+            $message .= "Line: " . $e->getLine() . "\n";
+
+            plugin_custom_log($message, 'debug.log');
+            telegram_push_log($message);
+        }
     }
 
-    /**
-     * Api add custom order
-     */
     public function add_custom_order()
     {
-        //global $woocommerce, $wpdb;
         try {
+            //global $woocommerce, $wpdb;
             if(empty($_POST)) {
-                echo json_encode([
+                wp_send_json([
                     'status' => false,
                     'msg'    => 'Access Denied.'
                 ]);
@@ -911,22 +533,17 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             $product_price = (float)$_POST['total_price'];
             $customer_email = $_POST['customer_email'];
             $product_name = $_POST['product_name'];
-            $post_id = 0;
             $first_name = $_POST['customer_first_name'];
             $last_name =  $_POST['customer_last_name'];
             $mc_success_url = $_POST['mc_success_url'] ?? '';
             $mc_failed_url = $_POST['mc_failed_url'] ?? '';
             $customer_ip = isset($_POST['customer_ip']) ? $_POST['customer_ip'] : '';
 
-            //telegram_push_log('$customer_ip: '. $customer_ip);
-
-            if ($post_id == 0) {
-                $args     = array('post_type' => 'product', 'posts_per_page' => -1);
-                $products = get_posts($args);
-                $post_id = $products[array_rand($products)]->ID;
-                if (!$post_id) {
-                    $post_id = 7015;
-                }
+            $args     = array('post_type' => 'product', 'posts_per_page' => -1);
+            $products = get_posts($args);
+            $product_id = $products[array_rand($products)]->ID;
+            if (!$product_id) {
+                $product_id = 7015;
             }
 
             $cart_item_data = array(
@@ -941,11 +558,10 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             );
 
             $order = wc_create_order();
-            $product = wc_get_product($post_id);
+            $product = wc_get_product($product_id);
             $order->set_address($address, 'billing');
             $order->add_order_note("Order process via API CS System");
 
-            // Change the product price
             $product->set_price($product_price);
             $order->add_product($product, 1, $cart_item_data);
             $order->set_total($product_price);
@@ -970,37 +586,25 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             if (!$order_id) {
                 wp_send_json([
                     'status' => false,
-                    'msg' => 'Can not make order. Please contact admin !'
+                    'msg' => 'Can not make order. Please contact admin!'
                 ], 200);
             }
 
-            $paypalType = $this->apiVersion;
-            //telegram_push_log('ver '. $paypalType);
-
-            if ($paypalType == 'invoice') {
-                $payment_res = $this->paypal_type_0();
-            } else if ($paypalType == 'v1') {
-                $payment_res = $this->paypal_type_1($order, $order_id, $cs_ref_code);
-            } else if ($paypalType == 'v2') {
-                $payment_res = $this->paypal_type_2($order, $order_id, $cs_ref_code, $customer_ip);
-            } else {
-                $payment_res = [
-                    'status' => false,
-                    'msg' => 'Can not choose pp method type'
-                ];
-            }
-
+            $payment_res = $this->createPaypalPayment($order, $cs_ref_code, $customer_ip);
             $paymentStatus = $payment_res['status'] ?? false;
-            if ($paymentStatus) {
+            if (!$paymentStatus) {
+                $res = array(
+                    'status' => false,
+                    'msg' => $payment_res['msg']
+                );
+            } else {
                 $payment_invoice_url = $payment_res['payment_link'];
 
                 $redirectUrl = home_url('/wc-api/wc_redirect_payment_link');
                 // $redirectUrl = WC()->api_request_url('wc_redirect_payment_link');
-                if ($this->hidePaymentUrl) {
-                    $payment_invoice_url = add_query_arg([
-                        'pmcode' => pmCodeEncryptLinkToCode($payment_invoice_url),
-                    ], $redirectUrl);
-                }
+                $payment_invoice_url = add_query_arg([
+                    'pmcode' => pmCodeEncryptLinkToCode($payment_invoice_url),
+                ], $redirectUrl);
 
                 $res = array(
                     'status' => true,
@@ -1010,15 +614,10 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
                         'cs_ref_code' => $cs_ref_code
                     )
                 );
-            } else {
-                $res = array(
-                    'status' => false,
-                    'msg' => $payment_res['msg']
-                );
             }
 
             wp_send_json($res, 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $message = "Error:\n";
             $message .= "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
             $message .= "File: " . $e->getFile() . "\n";
@@ -1110,398 +709,227 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         }
     }
 
-    private function getSubnetIp($ip = null)
+    public function handle_return()
     {
-        if(is_null($ip)) {
-            $ip = getUserIP();
-        }
-        
-        $ip_parts = explode('.', $ip);
-        $subnet = "{$ip_parts[0]}.{$ip_parts[1]}.{$ip_parts[2]}";
-        //telegram_push_log("Ip: {$ip}, Subnet: {$subnet}");
-        return $subnet;
-    }
-
-    private function paypal_type_2($order, $order_id, $cs_ref_code, $custom_ip = null)
-    {
-        $orderNo = $order_id;
-        $total = $order->get_total();
-
-        $this->homeurl = site_url();
-
-        $cancel_url = $this->homeurl . '/wc-api/wc_cancel/';
-
-        if (empty($this->path)) {
-            $this->path = $this->homeurl . '/wc-api/wc_return_url?orderId=' . $order_id . '&csRefCode=' . $cs_ref_code;
-        }
-
-        $subnet = $this->getSubnetIp($custom_ip);
-        $md5 = md5($order_id . $subnet);
-
-        $sign = hash_hmac('sha256', $md5, $this->ip_secret);
-
-        $this->path .= "&sign={$sign}";
-
         try {
-            $client = $this->get_paypal_client_type_2();
+            $paymentId = $_GET['paymentId'] ?? '';
+            $token = $_GET['token'] ?? '';
+            $payerId = $_GET['PayerID'] ?? '';
+            $sign = $_GET['sign'] ?? '';
+            $orderIdFromQuery = $_GET['orderId'] ?? 0;
+            $cs_ref_code = $_GET['csRefCode'] ?? 0;
 
-            $unique_invoice_id = $orderNo . '-' . time();
+            $rawShieldInfo = get_option('wc_shieldpp_setting');
+            $shield_info = json_decode($rawShieldInfo, true);
+            $shieldStatus = $shield_info['status'] ?? false;
+            if ($shieldStatus == true) {
+                $shield_gateways = json_decode($shield_info['result']['shield_gateways'], true);
+            }
 
-            $request = new OrdersCreateRequest();
-            $request->prefer('return=representation');
-            $request->body = [
-                "intent" => "CAPTURE",
-                "purchase_units" => [
-                    [
-                        "reference_id" => $orderNo,
-                        "amount" => [
-                            "currency_code" => "USD",
-                            "value" => $total
-                        ],
-                        "invoice_id" => $unique_invoice_id
-                    ]
+            $cs_success_url = get_post_meta($orderIdFromQuery, 'mc_success_url', true);
+            if (empty($cs_success_url)) {
+                $cs_success_url = $shield_gateways['return_link']['cs_success_url'];
+            }
+
+            $cs_failed_url = get_post_meta($orderIdFromQuery, 'mc_failed_url', true);
+            if (empty($cs_failed_url)) {
+                $cs_failed_url = $shield_gateways['return_link']['cs_failes_url'];
+            }
+            try {
+                $client = $this->get_paypal_client_type_2();
+                ini_set('display_errors', 1);
+                ini_set('display_startup_errors', 1);
+                error_reporting(E_ALL);
+
+                $request = new OrdersCaptureRequest($token);
+                $request->prefer('return=representation');
+                $response = $client->execute($request);
+            } catch (HttpException $e) {
+                $errorBody = $e->getMessage();
+                $statusCode = $e->statusCode;
+
+                $message = "PayPal API error during capture:\n";
+                $message .= "StatusCode: $statusCode\n";
+                $message .= "Response: $errorBody\n";
+                plugin_custom_log($message, 'debug.log');
+                telegram_push_log($message);
+
+                $failRes = [];
+                if (strpos($errorBody, 'INVALID_RESOURCE_ID') !== false) {
+                    $failRes = [
+                        'status' => false,
+                        'msg' => 'Access Denied: Invalid resource ID'
+                    ];
+                } else {
+                    $failRes = [
+                        'status' => false,
+                        'msg' => 'PayPal API error: ' . $errorBody
+                    ];
+                }
+
+                wp_send_json($failRes, $statusCode);
+                exit;
+            }
+
+            # Parse result
+            $result = $response->result;
+
+            $payee_email  = $result->purchase_units[0]->payee->email_address ?? '';
+            $buyer_email  = $result->payer->email_address ?? '';
+            $buyer_status = $result->payer->status ?? '';
+
+            $invoiceId      = $result->purchase_units[0]->payments->captures[0]->invoice_id ?? '';
+            $orderstatus  = $result->purchase_units[0]->payments->captures[0]->status ?? '';
+            $txn_id       = $result->purchase_units[0]->payments->captures[0]->id ?? '';
+
+            $logs = [
+                'apiInfo'     => [
+                    'ppclientId' => $this->clientId,
+                    'ppSecret'   => $this->Secret,
                 ],
-                "application_context" => [
-                    "cancel_url" => $cancel_url,
-                    "return_url" => $this->path
-                ]
+                'payee_email' => $payee_email,
+                'buyer_email' => $buyer_email,
+                'buyer_status'=> $buyer_status,
+                'invoice'     => $invoiceId,
+                'orderstatus' => $orderstatus,
+                'txn_id'      => $txn_id
             ];
+            telegram_push_log("Logs: " . print_r($logs, true));
 
-            $response = $client->execute($request);
 
-            //' . print_r($response, true));
+            $or_status = $this->get_capture_status($txn_id);
+            if (strtolower($buyer_status) == "verified") {
+                $or_status = "Completed";
+            }
 
-            $approvalLink = null;
-            foreach ($response->result->links as $link) {
-                if ($link->rel === 'approve') {
-                    $approvalLink = $link->href;
-                    break;
+            $postSrv = new PostService();
+            $postId = $postSrv->getPostIdViaPaypalInvoiceId($invoiceId);
+            $orderId = (int) $postId;
+            $order = wc_get_order($orderId);
+            if ($order->get_status() == "pending") {
+                if ($or_status == "Completed") {
+                    $order->add_order_note(
+                        sprintf(__('Payment success (Trans ID: %s)', 'wc-ppcp'), $txn_id)
+                    );
+                    $order->payment_complete($txn_id);
+                } else if ($or_status == "Pending") {
+                    $order->add_order_note(
+                        sprintf(__('Payment success (Trans ID: %s)', 'wc-ppcp'), $txn_id)
+                    );
+                    $order->update_status('on-hold', __('Processing', 'woocommerce'));
+                } else {
+                    $order->add_order_note(
+                        sprintf(__('Payment failed (Trans ID: %s)', 'wc-ppcp'), $txn_id)
+                    );
+                    $order->update_status('failed', __('Failed', 'woocommerce'));
                 }
             }
 
-            update_post_meta($orderNo, 'paypal_invoice_id', $unique_invoice_id);
-            update_post_meta($orderNo, 'cs_pp_payment_link', $approvalLink);
+            $customer_ip = get_post_meta($orderId, '_customer_ip_address', true);
+            $clientIp = ClientIpHelper::getClientIp();
+            $subnet = ClientIpHelper::getIpSubnet($clientIp);
+            $md5 = md5($orderId . $subnet);
+            $server_signature = hash_hmac('sha256', $md5, $this->ip_secret);
+            if ($server_signature == $sign) {
+                $redirectUrl = $cs_success_url;
+            } else {
+                $redirectUrl = $this->getMyAccountUrl();
+            }
 
-            return [
-                'status' => true,
-                'payment_link' => $approvalLink,
-                'qr_code' => '',
-                'cs_ref_code' => $cs_ref_code
-            ];
-        } catch (\Exception $e) {
-            $message = "Error:\n";
-            $message .= "Message: Error in paypal_type_2 " . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
+            if (file_exists(__DIR__ . "/tpl/success-page.php")) {
+                extract([
+                    'contact_page_link' => $this->contact_page_link,
+                ]);
+                ob_start();
+                require_once __DIR__ . "/tpl/success-page.php";
+                $output = ob_get_clean();
 
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            return [
-                'status' => false,
-                'msg' => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * @todo: update sau
-     */
-    public function paypal_type_0()
-    {
-        $OAuthTokenCredential = new \PayPal\Auth\OAuthTokenCredential(
-            $this->clientId,    // ClientID
-            $this->Secret      // Secret
-        );
-
-        $apiContext = new \PayPal\Rest\ApiContext($OAuthTokenCredential);
-
-        if ('yes' == $this->testmode) {
-            $apiPaypalConfig = ['mode' => 'sandbox'];
-        } else {
-            $apiPaypalConfig = ['mode' => 'live'];
-        }
-
-        $apiContext->setConfig($apiPaypalConfig);
-
-        try {
-            $webhook = new \PayPal\Api\Webhook();
-            $webhookList = $webhook->getAllWithParams([], $apiContext);
-
-            $webhookExists = false;
-            $ipnLink = WC()->api_request_url('wc_shieldpp_ipn');
-            telegram_push_log($ipnLink);
-
-            foreach ($webhookList->getWebhooks() as $existingWebhook) {
-                if ($existingWebhook->getUrl() === $ipnLink) {
-                    $webhookExists = true;
-                    break;
+                if (empty($output)) {
+                    die("Output is empty");
                 }
+
+                header('Content-Type: text/html');
+                echo $output;
             }
 
-            if (!$webhookExists) {
-                $webhook = new \PayPal\Api\Webhook();
-                $webhook->setUrl($ipnLink);
-                telegram_push_log($webhook);
-
-                $webhookEventTypes = array();
-                $webhookEventTypes[] = new \PayPal\Api\WebhookEventType('{"name":"INVOICING.INVOICE.PAID"}');
-                $webhook->setEventTypes($webhookEventTypes);
-
-                $webhook->create($apiContext);
-                //echo "Webhook created successfully!";
-            } else {
-                //echo "Webhook already exists.";
-            }
-
-            return;
-        } catch (\Exception $e) {
-            $message = "Error:\n";
-            $message .= "Message: Error in create_paypal_invoice paypal_type = 0 cannot create Webhook Link " . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
-
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-                'msg' => $e->getMessage()
-            );
-            return $res;
-        }
-
-        $orderNo = $order_id;
-        $business_name = get_bloginfo('name');
-        $business_email = $paypal_settings['paypal_business_email'] ?? '';
-
-        $total = $order->get_total();
-        $invoice = new Invoice();
-
-        $invoice->setMerchantInfo(new MerchantInfo())
-            ->setBillingInfo(array(new BillingInfo()))
-            ->setShippingInfo(new ShippingInfo())
-            ->setReference($orderNo);
-
-        $invoice->getMerchantInfo()->setEmail($business_email)->setBusinessName($business_name);
-
-        $billing = $invoice->getBillingInfo();
-        $billing[0]->setEmail($order->get_billing_email());
-
-        $items = array();
-        $items[0] = new InvoiceItem();
-        $items[0]->setName("Pay Invoice #" . $orderNo)->setQuantity(1)->setUnitPrice(new Currency());
-
-        $items[0]->getUnitPrice()->setCurrency("USD")->setValue($total);
-        $invoice->setItems($items)
-            ->setPaymentTerm(array('due_date' => date("Y-m-d T", strtotime("+63 hours"))))
-            ->setTerms("NO REFUND, Please contact our team to request TRIAL");
-
-        $request = clone $invoice;
-        try {
-
-            $invoice->create($apiContext);
-            if ('yes' == $this->testmode) {
-                $paylink = "https://www.sandbox.paypal.com/invoice/p/#" . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
-            } else {
-                $paylink = "https://www.paypal.com/invoice/p/#" . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
-            }
-
-            $invoice = Invoice::get($invoice->getId(), $apiContext);
-
-            $qr = Invoice::qrCode($invoice->getId(), array('height' => '300', 'width' => '300'), $apiContext);
-
-            $sendStatus = $invoice->send($apiContext);
-
-            update_post_meta($orderNo, 'cs_pp_qr_code', $qr->getImage());
-            update_post_meta($orderNo, 'cs_pp_payment_link', $paylink);
-
-            $res = array(
-                'status' => true,
-                'payment_link' => $paylink,
-                'qr_code' => $qr->getImage(),
+            $this->send_ipn_webhook([
+                'order_id' => $orderId,
+                'paymentStatus' => $or_status,
+                'transaction_id' => $txn_id,
                 'cs_ref_code' => $cs_ref_code,
-                'invoice_id' => $invoice->getId()
-            );
-
-            return $res;
-        } catch (\Exception $e) {
+                'invoice_id' => (int) $orderId,
+                'payer_email' => $payee_email,
+                'buyer_email' => $buyer_email
+            ]);
+        } catch (Exception $e) {
             $message = "Error:\n";
-            $message .= "Message: Error in create_paypal_invoice paypal_type = 0 cannot create Payment link " . $e->getMessage() . "\n";
+            $message .=
+                "Message: Error in add_custom_order paypal_type = 1" . $e->getMessage() . "\n";
             $message .= "File: " . $e->getFile() . "\n";
             $message .= "Line: " . $e->getLine() . "\n";
 
             plugin_custom_log($message, 'debug.log');
             telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-                'msg' => $e->getMessage()
-            );
-
-            return $res;
+            $this->redirectToMyAccount();
         }
     }
 
-    private function paypal_type_1($order, $order_id, $cs_ref_code)
-    {
-        $orderNo = $order_id;
-        $apiContext = new \PayPal\Rest\ApiContext(
-            new \PayPal\Auth\OAuthTokenCredential(
-                $this->clientId,    // ClientID
-                $this->Secret      // Secret
-            )
-        );
-        $apiContext->setConfig(
-            array(
-                'mode' => $this->mode
-            )
-        );
-        
-        //telegram_push_log('$apiContext'. print_r($apiContext, true));
-
-        $payer = new Payer();
-        $payer->setPaymentMethod("paypal");
-
-        $amount = new Amount();
-        $total = $order->get_total();
-        $amount->setCurrency("USD")->setTotal($total); //TODO: set $total
-
-        $transaction = new Transaction();
-        $transaction->setAmount($amount)->setDescription(convertSiteUrlToSiteName($this->homeurl) . " Invoice #" . $orderNo)->setInvoiceNumber($orderNo);
-
-        $redirectUrls = new RedirectUrls();
-        $cancel_url = $this->homeurl . '/wc-api/wc_cancel/';
-
-        if (empty($this->path)) {
-            $this->path = $this->homeurl . '/wc-api/wc_return_url?orderId=' . $order_id . '&csRefCode=' . $cs_ref_code;
-        }
-        $redirectUrls->setReturnUrl($this->path)->setCancelUrl($cancel_url);
-
-        $payment = new Payment();
-        $payment->setIntent("sale")->setPayer($payer)->setRedirectUrls($redirectUrls)->setTransactions(array($transaction));
-        try {
-            $payment->create($apiContext);
-            $redirect_url =  $payment->getApprovalLink();
-        } catch (\PayPal\Exception\PayPalConnectionException $ex) {
-            $redirect_url = $this->homeurl;
-            throw $ex;
-        }
-
-        try {
-            update_post_meta($orderNo, 'cs_pp_payment_link', $redirect_url);
-            $res = array(
-                'status' => true,
-                'payment_link' => $redirect_url,
-                'qr_code' => '',
-                'cs_ref_code' => $cs_ref_code
-            );
-            return $res;
-        } catch (\PayPal\Exception\PayPalConnectionException $e) {
-            throw $e;
-        }
-    }
-
-    public function webhook_ipn(array $params = [])
-    {
-        $defaults = [
-            'order_id'       => null,
-            'paymentStatus'  => '',
-            'transaction_id' => '',
-            'cs_ref_code'    => '',
-            'invoice_id'     => '',
-            'payer_email'     => '',
-            'buyer_email'     => ''
+    private function createPaypalPayment($order, $cs_ref_code, $customer_ip) {
+        $payment_res = [
+            'status' => false,
+            'msg' => 'Can not choose pp method type'
         ];
 
-        $params = array_merge($defaults, $params);
-
-        $order_id       = $params['order_id'];
-        $paymentStatus  = $params['paymentStatus'];
-        $transaction_id = $params['transaction_id'];
-        $cs_ref_code    = $params['cs_ref_code'];
-        $invoice_id     = $params['invoice_id'];
-        $payer_email    = $params['payer_email'];
-        $buyer_email    = $params['buyer_email'];
-
-        $message = "Received IPN request\n";
-
-        try {
-            if (!is_null($order_id) && !empty($order_id)) {
-                $wp_order_id = $order_id;
-                //$status = $paymentStatus;
-                $data_rs = [];
-                $transaction_id = $transaction_id; //? transaction from pmethod
-            } else { //invoice
-                // $bodyReceived = file_get_contents('php://input');
-                // $message .= "POSTBACK IPN: " . $bodyReceived;
-                // plugin_custom_log($message, 'debug.log');
-
-                // $data_rs = json_decode($bodyReceived, true);
-
-                // telegram_push_log("data from  body Received: " . print_r($data_rs, true));
-
-                // $wp_order_id = $data_rs['resource']['invoice']['reference'];
-                // $invoice_id = $data_rs['resource']['invoice']['id'];
-
-                // //$status = $data_rs['resource']['invoice']['status'];
-                // $transaction_id = $data_rs['resource']['invoice']['payments'][0]['transaction_id'];
-            }
-
-            $shield_api = new Shield_API(
-                $this->api_url,
-                $this->merchant_key,
-                $this->shield_key
-            );
-
-            //telegram_push_log("Shield API: " . print_r($shield_api, true));
-
-            $data_rs = array_merge($data_rs, $params);
-
-            if ($cs_ref_code) { // come from cash shield, post back to api
-                $callback_post = array(
-                    'type' => 1,
-                    'cs_ref_code' => $cs_ref_code,
-                    'transaction_id' => $transaction_id, //transaction from pp or stripe return
-                    'callback_data' => json_encode($data_rs)
-                );
-
-                $webhook_res = $shield_api->webhookIPN($callback_post);
-
-                $message .= "Shield API response: " . json_encode($webhook_res);
-                //telegram_push_log("callback_post: " . print_r($message, true));
-
-                //plugin_custom_log($message, 'debug.log');
-            } else { //invoice webhoook
-                $callback_post = array(
-                    'type' => 0,
-                    'invoice_id' => $invoice_id,
-                    'transaction_id' => $transaction_id, //transaction from pp or stripe return
-                    'callback_data' => json_encode($data_rs)
-                );
-
-                $webhook_res = $shield_api->webhookIPN($callback_post);
-
-                $message .= "Shield API response: " . json_encode($webhook_res);
-                
-            }
-            telegram_push_log("callback_post: " . print_r($message, true));
-        } catch (\Exception $e) {
-            $message = "Error:\n";
-            $message .= "Message: Error in webhook paypal_type = 1" . $e->getMessage() . "\n";
-            $message .= "File: " . $e->getFile() . "\n";
-            $message .= "Line: " . $e->getLine() . "\n";
-
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-
-            $res = array(
-                'status' => false,
-                'msg' => $e->getMessage()
-            );
-            return $res;
+        $paypalType = $this->apiVersion;
+        if ($paypalType == 'invoice') {
+            $payment_res = $this->paypal_type_0();
+        } else if ($paypalType == 'v1') {
+            $payment_res = $this->paypal_type_1($order, $cs_ref_code);
+        } else if ($paypalType == 'v2') {
+            $payment_res = $this->paypal_type_2($order, $cs_ref_code, $customer_ip);
         }
-        die();
+        return $payment_res;
+    }
+
+    private function paypal_type_0()
+    {
+        $ppType0 = new PaypalType0(
+            $this->clientId,
+            $this->Secret,
+            $this->testmode,
+        );
+        $res = $ppType0->createType0Order();
+        return $res;
+    }
+
+    private function paypal_type_1($order, $cs_ref_code)
+    {
+        $ppType1 = new PaypalType1(
+            $this->path,
+            'yes' == $this->testmode,
+            $this->clientId,
+            $this->Secret
+        );
+        $res = $ppType1->createType1Order($order, $cs_ref_code);
+        return $res;
+    }
+
+    private function paypal_type_2($order, $cs_ref_code, $customer_ip)
+    {
+        $client = $this->get_paypal_client_type_2();
+        $pptype2 = new PaypalType2(
+            $client,
+            $this->path,
+            $this->invoiceIdPrefix,
+            $this->ip_secret
+        );
+        return $pptype2->createOrder($order, $cs_ref_code, $customer_ip);
+    }
+
+    private function send_ipn_webhook(array $params = [])
+    {
+        $shieldWebhookSrv = new ShieldWebHookService();
+        $shieldWebhookSrv->sendWebhook($params);
     }
 
     /**
@@ -1509,15 +937,19 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      */
     public function thankyou_page()
     {
-        if ($this->instructions) {
-            echo wp_kses_post(wpautop(wptexturize($this->instructions)));
+        if ($this->completedmess) {
+            echo wp_kses_post(wpautop(wptexturize($this->completedmess)));
         }
     }
 
     public function cancel()
     {
-        $redirectUrl = $this->homeurl . "/my-account/";
-        
+        $homeUrl = get_option('siteurl');
+        $redirectUrl = $homeUrl . "/my-account/";
+        extract([
+            'contact_page_link' => $this->contact_page_link,
+            'redirectUrl' => $redirectUrl,
+        ]);
         ob_start();
         include __DIR__ . "/tpl/cancel-page.php";
         $output = ob_get_clean();
@@ -1549,7 +981,18 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         echo "<br />";
 
         $payment_code = WC()->session->get('payment', 0);
-        $signature = genSignature($this->ip_secret, $payment_code);
+
+        $key = $this->ip_secret;
+        $clientIp = ClientIpHelper::getClientIp();
+        $str = $clientIp . $key . $payment_code;
+        $genSignLog = [
+            'id' => $clientIp,
+            'key' => $key,
+            'paymentCode' => $payment_code
+        ];
+        telegram_push_log('signgen: ' . print_r($genSignLog, true));
+        $signature = md5($str);
+
         if ($signature === $currentSign) {
             echo 'OK';
         } else {
@@ -1574,7 +1017,9 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         echo $sign;
         echo "<Br />";
 
-        $order_ip = json_decode(file_get_contents('https://premiumkey.co/tdev/checkproxy.php?ip=' . getUserIP()))->iprange;
+        $clientIp = ClientIpHelper::getClientIp();
+        $order_ip =
+            json_decode(file_get_contents('https://premiumkey.co/tdev/checkproxy.php?ip=' . $clientIp))->iprange;
         echo $order_ip;
         echo "<br />";
 
@@ -1600,10 +1045,6 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
             echo 456;
         }
 
-        die();
-        echo $payment_code;
-        echo "<br />";
-        echo genSignature($this->ip_secret, $payment_code);
         die();
     }
 
@@ -1633,84 +1074,50 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      */
     public function email_instructions($order, $sent_to_admin, $plain_text = false)
     {
-        if ($this->instructions && ! $sent_to_admin && $this->id === $order->get_payment_method()) {
-            echo wp_kses_post(wpautop(wptexturize($this->instructions)) . PHP_EOL);
+        if ($this->completedmess && ! $sent_to_admin && $this->id === $order->get_payment_method()) {
+            echo wp_kses_post(wpautop(wptexturize($this->completedmess)) . PHP_EOL);
         }
     }
-    
-    public function get_return_url_custom($url = '')
+
+    private function redirectToMyAccount()
     {
-        $redirectUrl = $url;
-        if(empty($url)) {
-            $redirectUrl = $this->homeurl . "/my-account/";
-        }
-        wp_redirect( $redirectUrl, 301 ); exit;
+        $homeUrl = get_option('siteurl');
+        $redirectUrl = $homeUrl . "/my-account/";
+        wp_redirect( $redirectUrl, 301 );
+        exit;
+    }
+
+    private function getMyAccountUrl() {
+        $homeUrl = get_option('siteurl');
+        $redirectUrl = $homeUrl . "/my-account/";
+        return $redirectUrl;
     }
 
     private function get_capture_status($txn_id) {
-        try {
-            $client = $this->get_paypal_client_type_2();
-            $request = new CapturesGetRequest($txn_id);
-            $captureRes = $client->execute($request);
-            $captureInfo = $captureRes->result;
-            $captureStatus = $captureInfo->status ?? null;
+        $paypalNvpSrv =
+            new PaypalNvpService(
+                'yes' == $this->testmode,
+                $this->soap_api,
+                $this->soap_pass,
+                $this->soap_signature
+            );
+        // $paypalNvpSrv->get_nvp_payment_status($txn_id);
 
-            $map = [
-                'COMPLETED' => 'Completed',
-                'DECLINED' => 'Denied',
-                'PARTIALLY_REFUNDED' => 'Partially-Refunded',
-                'PENDING' => 'Pending',
-                'REFUNDED' => 'Refunded',
-                'FAILED' => 'Failed',
-            ];
-            return $map[$captureStatus] ?? 'None';
-        } catch (\PayPalHttp\HttpException $e) {
-            // PayPal API returned error
-            $errorBody = $e->getMessage(); // string
-            $statusCode = $e->statusCode;
-            
-            $message = "PayPal API error get capture info:\n";
-            $message .= "StatusCode: $statusCode\n";
-            $message .= "Response: $errorBody\n";
-            plugin_custom_log($message, 'debug.log');
-            telegram_push_log($message);
-            
-            http_response_code($statusCode);
-            if (strpos($errorBody, 'INVALID_RESOURCE_ID') !== false) {
-                echo json_encode([
-                    'status' => false,
-                    'msg'    => 'Access Denied: Invalid resource ID'
-                ]);
-                exit;
-            }
-        
-            echo json_encode([
-                'status' => false,
-                'msg'    => 'PayPal API error: ' . $errorBody
-            ]);
-            exit;
-        }
-    }
+        $client = $this->get_paypal_client_type_2();
+        $request = new CapturesGetRequest($txn_id);
+        $captureRes = $client->execute($request);
+        $captureInfo = $captureRes->result;
+        $captureStatus = $captureInfo->status ?? null;
 
-    private function get_paypal_client_type_2() {
-        if ('yes' == $this->testmode) {
-            $environment = new SandboxEnvironment($this->clientId, $this->Secret);
-        } else {
-            $environment = new ProductionEnvironment($this->clientId, $this->Secret);
-        }
-        $client = new ProxyPayPalHttpClient($environment);
-        $type = $this->get_option('proxy_type');
-        $host = $this->get_option('proxy_host');
-        $port = $this->get_option('proxy_port');
-        $authType = $this->get_option('proxy_auth_type');
-        $user = $this->get_option('proxy_username');
-        $passwd = $this->get_option('proxy_password');
-        // $proxyDto = new ProxyConfigDto($type, $host, $port, $authType, $user, $passwd);
-        $proxyInfo = $this->get_option('proxy_info');
-        $proxyDto = ProxyConfigDto::fromInfoStr($type, $proxyInfo);
-        $client->setProxy($proxyDto);
-
-        return $client;
+        $map = [
+            'COMPLETED' => 'Completed',
+            'DECLINED' => 'Denied',
+            'PARTIALLY_REFUNDED' => 'Partially-Refunded',
+            'PENDING' => 'Pending',
+            'REFUNDED' => 'Refunded',
+            'FAILED' => 'Failed',
+        ];
+        return $map[$captureStatus] ?? 'None';
     }
 
     private function failedResponse(FailedResponseDto $dto, int $status): never
@@ -1730,5 +1137,28 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
 
         wp_send_json($res, $status);
         exit;
+    }
+
+    private function get_paypal_client_type_2() {
+        $clientId = $this->clientId;
+        $secret = $this->Secret;
+        if ('yes' == $this->testmode) {
+            $environment = new SandboxEnvironment($clientId, $secret);
+        } else {
+            $environment = new ProductionEnvironment($clientId, $secret);
+        }
+        $client = new ProxyPayPalHttpClient($environment);
+        $type = $this->get_option('proxy_type');
+        // $host = $this->get_option('proxy_host');
+        // $port = $this->get_option('proxy_port');
+        // $authType = $this->get_option('proxy_auth_type');
+        // $user = $this->get_option('proxy_username');
+        // $passwd = $this->get_option('proxy_password');
+        // $proxyDto = new ProxyConfigDto($type, $host, $port, $authType, $user, $passwd);
+        $proxyInfo = $this->get_option('proxy_info');
+        $proxyDto = ProxyConfigDto::fromInfoStr($type, $proxyInfo);
+        $client->setProxy($proxyDto);
+
+        return $client;
     }
 }

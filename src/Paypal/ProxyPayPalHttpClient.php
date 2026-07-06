@@ -48,8 +48,13 @@ class ProxyPayPalHttpClient extends PayPalHttpClient
             $requestCpy->headers = $formattedHeaders;
             $body = $this->encoder->serializeRequest($requestCpy);
             $requestCpy->headers = $this->mapHeaders($rawHeaders, $requestCpy->headers);
+            $paypalRqProcessor = new PaypalRequestProcesser();
+            $requestCpy->headers = $paypalRqProcessor->processHeaders($requestCpy->headers);
         }
 
+        $userAgent =
+            apply_filters( 'http_headers_useragent', 'WordPress/' . get_bloginfo( 'version' ) . '; ' . get_bloginfo( 'url' ), $url );
+        $curl->setOpt(CURLOPT_USERAGENT, $userAgent);
         $curl->setOpt(CURLOPT_URL, $url);
         $curl->setOpt(CURLOPT_CUSTOMREQUEST, $requestCpy->verb);
         $curl->setOpt(CURLOPT_HTTPHEADER, $this->serializeHeaders($requestCpy->headers));

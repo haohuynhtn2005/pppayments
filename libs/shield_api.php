@@ -15,11 +15,11 @@ class Shield_API
 	/**
 	 * Api
 	 */
-	public function webhookIPN($fields = array(), $timeout = 60)
+	public function webhookIPN($data = array(), $timeout = 60)
 	{
 		$url = $this->API_URL . '/transaction/webhooks';
 	
-    	$postvars = http_build_query($fields);
+    	$postvars = http_build_query($data);
 		
     	$log_file = 'webhookIPN';
 
@@ -93,7 +93,8 @@ class Shield_API
 	{
 		$url = $this->API_URL . '/transaction/create';
 		$log_file = "createOrder";
-		$postvars = http_build_query($fields);  //TODO: @author: brooklyn change $postvars
+		//TODO: @author: brooklyn change $postvars
+		$postvars = http_build_query($fields);
 		// foreach ($fields as $key => $value) {
 		// 	$postvars .= $key . "=" . $value . "&";
 		// }
