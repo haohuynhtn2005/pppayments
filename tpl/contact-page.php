@@ -1,35 +1,10 @@
-<?php
-    function getContactTitleByEndpoint() {
-
-        $request_uri = $_SERVER['REQUEST_URI'];
-    
-
-        $parts = explode('/wc-api/', $request_uri);
-    
-        if (isset($parts[1])) {
-            $endpoint = trim($parts[1], '/'); // Loại bỏ dấu '/' nếu có
-            
-            $text = ucwords(str_replace('-', ' ', $endpoint));
-            
-            if(preg_match('/\?/', $text)) {
-                $cut = explode('?', $text);
-                
-                $text = $cut[0];
-            }
-            
-            return $text; 
-        }
-    
-        return '';
-    }
-?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo getContactTitleByEndpoint() ?></title>
+    <title>Contact</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -102,22 +77,24 @@
 
 <body>
     <div class="container">
-        <h1><?php echo getContactTitleByEndpoint() ?></h1>
+        <h1>Contact us</h1>
         <form id="contactForm" method="POST">
+            <?php
+                $sign = '';
+                // $signData = json_encode([
+                //     'site' => home_url(),
+                //     'paypal_acc' => $business_email,
+                // ]);
+                // $sign = encodePmCode($signData);
+                // $sign = encodePmCode('');
+            ?>
+            <input id="sign" type="hidden" name="sign" value="<?php echo $sign ?>" />
+
             <label for="subject">Subject:</label>
             <input type="text" id="subject" name="subject" required>
 
             <label for="email">Email:</label>
             <input type="email" id="email" name="email" required>
-            <?php
-                $sign = json_encode([
-                    'site' => home_url(),
-                    'paypal_acc' => $this->business,
-                ]);
-            
-                $dataPaypal = pmCodeEncryptLinkToCode($sign);
-            ?>
-            <input id="category" type="hidden" name="category" value="<?php echo $dataPaypal ?>" />
 
             <label for="message">Message:</label>
             <textarea id="message" name="message" rows="5" required></textarea>
@@ -149,7 +126,7 @@
             const formData = {
                 subject: document.getElementById("subject").value,
                 email: document.getElementById("email").value,
-                category: document.getElementById("category").value,
+                sign: document.getElementById("sign").value,
                 message: document.getElementById("message").value,
                 other_contact: document.getElementById("other_contact").value,
                 referer: document.referrer ?? '',
@@ -158,7 +135,7 @@
                 lang: navigator.language,
             };
 
-            const response = await fetch("/wp-json/contact/v1/send", {
+            const response = await fetch("<?= $send_msg_url ?>", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

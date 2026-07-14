@@ -48,7 +48,7 @@ class ProxyPayPalHttpClient extends PayPalHttpClient
             $requestCpy->headers = $formattedHeaders;
             $body = $this->encoder->serializeRequest($requestCpy);
             $requestCpy->headers = $this->mapHeaders($rawHeaders, $requestCpy->headers);
-            $paypalRqProcessor = new PaypalRequestProcesser();
+            $paypalRqProcessor = new PaypalRequestProcessor();
             $requestCpy->headers = $paypalRqProcessor->processHeaders($requestCpy->headers);
         }
 

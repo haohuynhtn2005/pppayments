@@ -20,7 +20,7 @@ class PaypalType0
 
     $apiContext = new \PayPal\Rest\ApiContext($OAuthTokenCredential);
 
-    if ('yes' == $this->testmode) {
+    if ($this->testmode) {
       $apiPaypalConfig = ['mode' => 'sandbox'];
     } else {
       $apiPaypalConfig = ['mode' => 'live'];
@@ -28,52 +28,36 @@ class PaypalType0
 
     $apiContext->setConfig($apiPaypalConfig);
 
-    try {
-      $webhook = new \PayPal\Api\Webhook();
-      $webhookList = $webhook->getAllWithParams([], $apiContext);
+    $webhook = new \PayPal\Api\Webhook();
+    $webhookList = $webhook->getAllWithParams([], $apiContext);
 
-      $webhookExists = false;
-      $ipnLink = WC()->api_request_url('wc_shieldpp_ipn');
-      telegram_push_log($ipnLink);
+    $webhookExists = false;
+    $ipnLink = WC()->api_request_url('wc_shieldpp_ipn');
+    telegram_push_log($ipnLink);
 
-      foreach ($webhookList->getWebhooks() as $existingWebhook) {
-        if ($existingWebhook->getUrl() === $ipnLink) {
-          $webhookExists = true;
-          break;
-        }
+    foreach ($webhookList->getWebhooks() as $existingWebhook) {
+      if ($existingWebhook->getUrl() === $ipnLink) {
+        $webhookExists = true;
+        break;
       }
-
-      if (!$webhookExists) {
-        $webhook = new \PayPal\Api\Webhook();
-        $webhook->setUrl($ipnLink);
-        telegram_push_log($webhook);
-
-        $webhookEventTypes = array();
-        $webhookEventTypes[] = new \PayPal\Api\WebhookEventType('{"name":"INVOICING.INVOICE.PAID"}');
-        $webhook->setEventTypes($webhookEventTypes);
-
-        $webhook->create($apiContext);
-        //echo "Webhook created successfully!";
-      } else {
-        //echo "Webhook already exists.";
-      }
-
-      return;
-    } catch (\Exception $e) {
-      $message = "Error:\n";
-      $message .= "Message: Error in create_paypal_invoice paypal_type = 0 cannot create Webhook Link " . $e->getMessage() . "\n";
-      $message .= "File: " . $e->getFile() . "\n";
-      $message .= "Line: " . $e->getLine() . "\n";
-
-      plugin_custom_log($message, 'debug.log');
-      telegram_push_log($message);
-
-      $res = array(
-        'status' => false,
-        'msg' => $e->getMessage()
-      );
-      return $res;
     }
+
+    if (!$webhookExists) {
+      $webhook = new \PayPal\Api\Webhook();
+      $webhook->setUrl($ipnLink);
+      telegram_push_log($webhook);
+
+      $webhookEventTypes = array();
+      $webhookEventTypes[] = new \PayPal\Api\WebhookEventType('{"name":"INVOICING.INVOICE.PAID"}');
+      $webhook->setEventTypes($webhookEventTypes);
+
+      $webhook->create($apiContext);
+      //echo "Webhook created successfully!";
+    } else {
+      //echo "Webhook already exists.";
+    }
+
+    return;
 
     $orderNo = $order_id;
     $business_name = get_bloginfo('name');
@@ -102,52 +86,31 @@ class PaypalType0
       ->setTerms("NO REFUND, Please contact our team to request TRIAL");
 
     $request = clone $invoice;
-    try {
 
-      $invoice->create($apiContext);
-      if ('yes' == $this->testmode) {
-        $paylink = "https://www.sandbox.paypal.com/invoice/p/#"
-          . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
-      } else {
-        $paylink = "https://www.paypal.com/invoice/p/#"
-          . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
-      }
-
-      $invoice = Invoice::get($invoice->getId(), $apiContext);
-
-      $qr = Invoice::qrCode($invoice->getId(), array('height' => '300', 'width' => '300'), $apiContext);
-
-      $sendStatus = $invoice->send($apiContext);
-
-      update_post_meta($orderNo, 'cs_pp_qr_code', $qr->getImage());
-      update_post_meta($orderNo, 'cs_pp_payment_link', $paylink);
-
-      $res = array(
-        'status' => true,
-        'payment_link' => $paylink,
-        'qr_code' => $qr->getImage(),
-        'cs_ref_code' => $cs_ref_code,
-        'invoice_id' => $invoice->getId()
-      );
-
-      return $res;
-    } catch (\Exception $e) {
-      $message = "Error:\n";
-      $message .=
-        "Message: Error in create_paypal_invoice paypal_type = 0 cannot create Payment link "
-        . $e->getMessage() . "\n";
-      $message .= "File: " . $e->getFile() . "\n";
-      $message .= "Line: " . $e->getLine() . "\n";
-
-      plugin_custom_log($message, 'debug.log');
-      telegram_push_log($message);
-
-      $res = array(
-        'status' => false,
-        'msg' => $e->getMessage()
-      );
-
-      return $res;
+    $invoice->create($apiContext);
+    if ($this->testmode) {
+      $paylink = "https://www.sandbox.paypal.com/invoice/p/#"
+        . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
+    } else {
+      $paylink = "https://www.paypal.com/invoice/p/#"
+        . str_replace("-", "", str_replace("INV2-", "", $invoice->getId()));
     }
+
+    $invoice = Invoice::get($invoice->getId(), $apiContext);
+    $qr = Invoice::qrCode($invoice->getId(), array('height' => '300', 'width' => '300'), $apiContext);
+    $sendStatus = $invoice->send($apiContext);
+
+    update_post_meta($orderNo, 'cs_pp_qr_code', $qr->getImage());
+    update_post_meta($orderNo, 'cs_pp_payment_link', $paylink);
+
+    $res = array(
+      'status' => true,
+      'payment_link' => $paylink,
+      'qr_code' => $qr->getImage(),
+      'cs_ref_code' => $cs_ref_code,
+      'invoice_id' => $invoice->getId()
+    );
+
+    return $res;
   }
 }

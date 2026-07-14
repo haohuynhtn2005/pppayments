@@ -1,68 +1,29 @@
 <?php
+// if (!function_exists('log_error')) {
+//   function log_error($file_name, $message)
+//   {
+//     $log_dir = __DIR__ . "/../logs/";
+//     if (!file_exists($log_dir)) {
+//       mkdir($log_dir, 0777, true);
+//     }
 
-if(!function_exists('get_random_wc_api_endpoint')) {
-    function get_random_wc_api_endpoint()
-    {
-        $endpoints = [
-            "/wc-api/contact",
-            "/wc-api/support-center",
-            "/wc-api/need-help",
-            "/wc-api/send-us-a-message",
-            "/wc-api/drop-us-a-message",
-            "/wc-api/speak-with-us",
-            "/wc-api/talk-to-us",
-            "/wc-api/connect-with-us",
-            "/wc-api/reach-out",
-            "/wc-api/get-in-touch"
-        ];
-        
-        return $endpoints[array_rand($endpoints)];
-    }
-}
-
-
-if (!function_exists('log_error')) {
-  function log_error($file_name, $message)
-  {
-    $log_dir = __DIR__ . "/../logs/";
-
-    if (!file_exists($log_dir)) {
-      mkdir($log_dir, 0777, true);
-    }
-
-    $log_file = $log_dir . "{$file_name}_" . date("Y-m-d") . ".txt";
-
-    $log_data = date('Y-m-d H:i:s') . " - " . $message . "\n";
-
-    file_put_contents($log_file, $log_data, FILE_APPEND);
-  }
-}
-
-if(!function_exists('convertSiteUrlToSiteName')) {
-    function convertSiteUrlToSiteName($homeUrl)
-    {
-        $parsedUrl = parse_url($homeUrl);
-        $host = $parsedUrl['host'] ?? '';
-        $name = '';
-        if(preg_match('/(.*?)\.(.*?)/', $host, $m)) {
-          $name = ucfirst($m[1]);
-        }
-
-        return $name;
-    }
-}
+//     $log_file = $log_dir . "{$file_name}_" . date("Y-m-d") . ".txt";
+//     $log_data = date('Y-m-d H:i:s') . " - " . $message . "\n";
+//     file_put_contents($log_file, $log_data, FILE_APPEND);
+//   }
+// }
 
 if (!function_exists('plugin_custom_log')) {
   function plugin_custom_log($message = '', $fileName = '')
   {
     if (is_array($message) || is_object($message)) {
-        $message = print_r($message, true);
+      $message = print_r($message, true);
     }
 
     $plugin_dir = plugin_dir_path(__FILE__);
     $log_dir = $plugin_dir . '../logs/';
     if (!file_exists($log_dir)) {
-        mkdir($log_dir, 0755, true);
+      mkdir($log_dir, 0755, true);
     }
 
     $log_file = $log_dir . 'log-' . date('Y-m-d') . '.log';
@@ -103,21 +64,20 @@ if (!function_exists('telegram_push_log')) {
     }
 
     $host = 'localhost';
-	if($_SERVER['HTTP_HOST']) {
-		$host = strtoupper($_SERVER['HTTP_HOST']);
-	}
+    if ($_SERVER['HTTP_HOST']) {
+      $host = strtoupper($_SERVER['HTTP_HOST']);
+    }
 
-	$message = $host ."|" . $message;
-
+    $message = $host . "|" . $message;
     $bot_token = TELEGRAM_BOT_TOKEN;
     $url = "https://api.telegram.org/bot$bot_token/sendMessage";
     $data = [
       'chat_id' => $idTele !== null ? $idTele : TELEGRAM_CHAT_ID,
       'text' => $message
     ];
-    
+
     if ($threadId !== null) {
-        $data['message_thread_id'] = (int)$threadId;
+      $data['message_thread_id'] = (int) $threadId;
     }
 
     $ch = curl_init($url);
@@ -138,111 +98,25 @@ if (!function_exists('telegram_push_log')) {
   }
 }
 
-if (!function_exists('dd')) {
-  function dd($value)
+if (!function_exists('encodePmCode')) {
+  function encodePmCode(string $link)
   {
-    echo "<pre>";
-    var_dump($value);
-    die();
-    echo "</pre>";
+    $encode = rtrim(strtr(base64_encode($link), '+/', '-_'), '=');
+    $encode = strrev($encode);
+    return $encode;
   }
 }
 
-if (!function_exists('postCURL')) {
-  define('CURL_LOG_DATA', true);
-  /**
-   * Post Url
-   */
-  function postCURL(string $url, $PARAMS, $METHOD = "POST", $authorization = '')
+if (!function_exists('decodePmCode')) {
+  function decodePmCode(string $code)
   {
-    $msg_data = "Request URL: " . $url . "\n";
-    $msg_data .= "Request Params: " . json_encode($PARAMS) . "\n";
-
-    try {
-
-      $curl = curl_init();
-      curl_setopt_array($curl, array(
-        CURLOPT_URL => $url,
-        CURLOPT_POSTFIELDS =>  http_build_query($PARAMS),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => '',
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => $METHOD
-      ));
-
-      if (!empty($authorization)) {
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Authorization: ' . $authorization));
-      }
-
-      $response = curl_exec($curl);
-
-      if (curl_errno($curl)) {
-        throw new Exception(curl_error($curl));
-      }
-
-      if (CURL_LOG_DATA) {
-        // Log the response details
-        $msg_data .= "Response: " . $response . "\n";
-        log_error('postCURL', $msg_data);
-      }
-
-      curl_close($curl);
-      return $response;
-    } catch (\Exception $e) {
-      log_error('postCURL', "Error : {$e} ",);
-      throw $e;
+    $reversedStr = strrev($code);
+    $padding = strlen($reversedStr) % 4;
+    if ($padding > 0) {
+      $reversedStr .= str_repeat('=', 4 - $padding);
     }
+    $decrypted = base64_decode(strtr($reversedStr, '-_', '+/'));
+
+    return $decrypted;
   }
-}
-
-if(!function_exists('pmCodeEncryptLinkToCode')) {
-    function pmCodeEncryptLinkToCode(string $link)
-    {
-        $encode = base64url_encode($link);
-        $encode = strrev($encode);
-        return $encode;
-    }
-}
-
-if(!function_exists('pmCodeDecryptToLink')) {
-    function pmCodeDecryptToLink(string $code)
-    {
-        $decrypted = base64url_decode(strrev($code));
-        return $decrypted;
-    }
-}
-
-if(!function_exists('base64url_encode')) {
-    function base64url_encode($data) {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-    }
-}
-
-if(!function_exists('base64url_decode')) {
-    function base64url_decode($data) {
-        $padding = strlen($data) % 4;
-        if ($padding > 0) {
-            $data .= str_repeat('=', 4 - $padding);
-        }
-        return base64_decode(strtr($data, '-_', '+/'));
-    }
-}
-
-if(!function_exists('ip_in_range')) {
-    function ip_in_range( $ip, $range )
-    {
-    	if ( strpos( $range, '/' ) == false ) {
-    		$range .= '/32';
-    	}
-    	// $range is in IP/CIDR format eg 127.0.0.1/24
-    	list( $range, $netmask ) = explode( '/', $range, 2 );
-    	$range_decimal = ip2long( $range );
-    	$ip_decimal = ip2long( $ip );
-    	$wildcard_decimal = pow( 2, ( 32 - $netmask ) ) - 1;
-    	$netmask_decimal = ~ $wildcard_decimal;
-    	return ( ( $ip_decimal & $netmask_decimal ) == ( $range_decimal & $netmask_decimal ) );
-    }
 }

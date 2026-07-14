@@ -8,6 +8,8 @@
 
 include_once(plugin_dir_path(__FILE__) . '/libs/shield_api.php');
 
+use Dell\WpShieldpp\Service\ShieldApiService;
+
 if (! defined('ABSPATH')) {
 	exit; // Exit if accessed directly.
 }
@@ -308,7 +310,7 @@ class CS_JPAY extends WC_Payment_Gateway
 
 	public function createShieldOrder($fields)
 	{
-		$shield_api = new Shield_API(
+		$shield_api = new ShieldApiService(
 			$this->api_url,
 			$this->merchant_key,
 			$this->shield_key
@@ -523,7 +525,7 @@ class CS_JPAY extends WC_Payment_Gateway
 			$message .= "File: " . $e->getFile() . "\n";
 			$message .= "Line: " . $e->getLine() . "\n";
 
-			plugin_custom_log($message, 'debug.log');
+			plugin_custom_log($message);
 			telegram_push_log($message);
 		}
 		ob_clean();
@@ -678,7 +680,7 @@ class CS_JPAY extends WC_Payment_Gateway
 			$message .= "File: " . $e->getFile() . "\n";
 			$message .= "Line: " . $e->getLine() . "\n";
 
-			plugin_custom_log($message, 'debug.log');
+			plugin_custom_log($message);
 			telegram_push_log($message);
 		}
 	}

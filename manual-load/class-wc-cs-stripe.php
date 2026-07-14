@@ -13,6 +13,8 @@ if (! defined('ABSPATH')) {
 }
 include_once (plugin_dir_path( __FILE__ ).'vendor/stripe-php/init.php');
 
+use Dell\WpShieldpp\Service\ShieldApiService;
+
 /**
  * CS_STRIPE Payment Gateway
  *
@@ -333,7 +335,7 @@ class CS_STRIPE extends WC_Payment_Gateway
 
 	public function createShieldOrder($fields)
 	{
-		$shield_api = new Shield_API(
+		$shield_api = new ShieldApiService(
 			$this->api_url,
 			$this->merchant_key,
 			$this->shield_key
@@ -969,8 +971,7 @@ class CS_STRIPE extends WC_Payment_Gateway
 			$message .= "File: " . $e->getFile() . "\n";
 			$message .= "Line: " . $e->getLine() . "\n";
 
-			$log_file = "Log";
-			log_error($log_file, $message);
+			plugin_custom_log($message);
 			telegram_push_log($message);
 			$res=array('status'=>'ERORR','error'=>$message);
 		}
@@ -1021,11 +1022,11 @@ class CS_STRIPE extends WC_Payment_Gateway
 			);
 		} catch (Exception $e) {
 			$message = "Error:\n";
-			$message .= "Message: Error in create_stripe_invoice : " . $e->getMessage() . "\n";
+			$message .= "Message: " . $e->getMessage() . "\n";
 			$message .= "File: " . $e->getFile() . "\n";
 			$message .= "Line: " . $e->getLine() . "\n";
 
-			log_error($file_logs, $message);
+			plugin_custom_log($message);
 			telegram_push_log($message);
 		}
 
@@ -1064,11 +1065,11 @@ class CS_STRIPE extends WC_Payment_Gateway
 				}
 			} catch (Exception $e) {
 				$message = "Error:\n";
-				$message .= "Message: Error in create_stripe_invoice (token) : " . $e->getMessage() . "\n";
+				$message .= "Message: " . $e->getMessage() . "\n";
 				$message .= "File: " . $e->getFile() . "\n";
 				$message .= "Line: " . $e->getLine() . "\n";
 
-				log_error($file_logs, $message);
+				plugin_custom_log($message);
 				telegram_push_log($message);
 			}
 		} else {

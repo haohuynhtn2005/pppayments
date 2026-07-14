@@ -49,7 +49,7 @@ class PaypalType1
     $homeUrl = get_option('siteurl');
 
     $transaction->setAmount($amount)->setDescription(
-      convertSiteUrlToSiteName($homeUrl)
+      $this->convertSiteUrlToSiteName($homeUrl)
       . " Invoice #" . $orderNo
     )->setInvoiceNumber($orderNo);
 
@@ -76,11 +76,23 @@ class PaypalType1
         'status' => true,
         'payment_link' => $redirect_url,
         'qr_code' => '',
-        'cs_ref_code' => $cs_ref_code
       );
       return $res;
     } catch (\PayPal\Exception\PayPalConnectionException $e) {
       throw $e;
     }
+  }
+
+  private function convertSiteUrlToSiteName(
+    $homeUrl
+  ) {
+    $parsedUrl = parse_url($homeUrl);
+    $host = $parsedUrl['host'] ?? '';
+    $name = '';
+    if (preg_match('/(.*?)\.(.*?)/', $host, $m)) {
+      $name = ucfirst($m[1]);
+    }
+
+    return $name;
   }
 }

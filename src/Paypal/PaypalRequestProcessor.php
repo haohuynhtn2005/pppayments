@@ -1,7 +1,7 @@
 <?php
 namespace Dell\WpShieldpp\Paypal;
 
-class PaypalRequestProcesser
+class PaypalRequestProcessor
 {
   public function __construct(
     // private bool $isTestMode,

@@ -6,7 +6,12 @@ final class ClientIpHelper
   public static function getIpSubnet($ip)
   {
     $ip_parts = explode('.', $ip);
-    $subnet = "{$ip_parts[0]}.{$ip_parts[1]}.{$ip_parts[2]}";
+    $subnet = sprintf(
+      '%s.%s.%s',
+      $ip_parts[0] ?? '',
+      $ip_parts[1] ?? '',
+      $ip_parts[2] ?? ''
+    );
     return $subnet;
   }
 

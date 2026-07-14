@@ -14,6 +14,23 @@ class ConfigFormField
         'label' => __('Enable Paypal Payment', 'ttr_shield_payments'),
         'default' => 'yes'
       ),
+      'testmode' => array(
+        'title' => __('Test Mode', 'ttr_shield_payments'),
+        'type' => 'checkbox',
+        'label' => __('Enable / Disable', 'ttr_shield_payments'),
+        'default' => 'true',
+        'description' => __('Enable / Disable test mode.', 'ttr_shield_payments')
+      ),
+      'invoice_id_prefix' => array(
+        'title' => __('Invoice Prefix', 'ttr_shield_payments'),
+        'type' => 'text',
+        'description' =>
+          __(
+            'Add a unique prefix to invoice numbers for site-specific tracking (recommended).',
+            'ttr_shield_payments'
+          ),
+        'default' => '',
+      ),
       'business' => array(
         'title' => __('Paypal Email', 'ttr_shield_payments'),
         'type' => 'text',
@@ -36,6 +53,34 @@ class ConfigFormField
         'css' => 'width:400px'
       ),
 
+      'waitmess' => array(
+        'title' => __('Waiting Message', 'ttr_shield_payments'),
+        'type' => 'text',
+        'description' => __('Insert waiting message', 'ttr_shield_payments'),
+        'default' => '',
+        'css' => 'width:400px'
+      ),
+      'completedmess' => array(
+        'title' => __('Completed Message', 'ttr_shield_payments'),
+        'type' => 'text',
+        'description' => __('Insert completed message', 'ttr_shield_payments'),
+        'default' => '',
+        'css' => 'width:400px'
+      ),
+
+      'debug' => array(
+        'title' => __('Debug Log', 'ttr_shield_payments'),
+        'type' => 'checkbox',
+        'label' => __('Enable logging', 'ttr_shield_payments'),
+        'default' => 'true',
+        'description' =>
+          __('View logs in WooCommerce > Status > Logs (file: ttr_shield_payments).', 'ttr_shield_payments'),
+      ),
+      ...self::getProxyFields(),
+
+      /**
+       * @deprecated
+       */
       'SOAP_API' => array(
         'title' => __('API User', 'ttr_shield_payments'),
         'type' => 'text',
@@ -78,58 +123,6 @@ class ConfigFormField
         ),
         'css' => 'width:400px'
       ),
-
-      'waitmess' => array(
-        'title' => __('Waiting Message', 'ttr_shield_payments'),
-        'type' => 'text',
-        'description' => __('Insert waiting message', 'ttr_shield_payments'),
-        'default' => '',
-        'css' => 'width:400px'
-      ),
-      'completedmess' => array(
-        'title' => __('Completed Message', 'ttr_shield_payments'),
-        'type' => 'text',
-        'description' => __('Insert completed message', 'ttr_shield_payments'),
-        'default' => '',
-        'css' => 'width:400px'
-      ),
-      'contact_page_link' => array(
-        'title' => __('Contact page', 'ttr_shield_payments'),
-        'type' => 'text',
-        'description' => __('Automatic get contact page', 'ttr_shield_payments'),
-        'default' => '/wc-api/contact',
-        'css' => 'width:400px',
-        // 'disabled' => f,
-      ),
-
-      'debug' => array(
-        'title' => __('Debug Log', 'ttr_shield_payments'),
-        'type' => 'checkbox',
-        'label' => __('Enable logging', 'ttr_shield_payments'),
-        'default' => 'true',
-        'description' => __('Log events, such as trade status.', 'ttr_shield_payments')
-      ),
-      'testmode' => array(
-        'title' => __('Test Mode', 'ttr_shield_payments'),
-        'type' => 'checkbox',
-        'label' => __('Enable / Disable', 'ttr_shield_payments'),
-        'default' => 'true',
-        'description' => __('Enable / Disable test mode.', 'ttr_shield_payments')
-      ),
-
-      'invoice_id_prefix' => array(
-        'title' => __('Invoice Prefix', 'ttr_shield_payments'),
-        'type' => 'text',
-        'description' =>
-          __(
-            'Add a unique prefix to invoice numbers for site-specific tracking (recommended).',
-            'ttr_shield_payments'
-          ),
-        'default' => self::genInvoicePrefix(),
-        'default' => self::genRandomInvoicePrefix(),
-        'default' => '',
-      ),
-      ...self::getProxyFields()
     );
 
     return $formFields;
