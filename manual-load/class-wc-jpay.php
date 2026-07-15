@@ -8,7 +8,7 @@
 
 include_once(plugin_dir_path(__FILE__) . '/libs/shield_api.php');
 
-use Dell\WpShieldpp\Service\ShieldApiService;
+use ShieldPpPayment\Service\Shield\ShieldApiService;
 
 if (! defined('ABSPATH')) {
 	exit; // Exit if accessed directly.

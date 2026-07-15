@@ -1,13 +1,11 @@
 <?php
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal;
 
 //v2
-use Dell\WpShieldpp\Helper\ClientIpHelper;
-use Exception;
-use PayPalHttp\HttpException;
 use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Core\ProductionEnvironment;
-use PayPalCheckoutSdk\Core\PayPalHttpClient;
+use ShieldPpPayment\Paypal\Proxy\ProxyConfigDto;
+use ShieldPpPayment\Paypal\Proxy\ProxyPayPalHttpClient;
 
 
 class PaypalClient

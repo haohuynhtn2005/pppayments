@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Library;
+namespace ShieldPpPayment\Library;
 
 class CsPluginConfig {
   public static function init() {

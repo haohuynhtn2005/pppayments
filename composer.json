@@ -1,8 +1,8 @@
 {
-    "name": "dell/wp_shieldpp",
+    "name": "ttr/shield-pp",
     "autoload": {
         "psr-4": {
-            "Dell\\WpShieldpp\\": "src/"
+            "ShieldPpPayment\\": "src/"
         }
     },
     "authors": [
@@ -14,6 +14,7 @@
     "require": {
         "paypal/paypal-checkout-sdk": "^1.0",
         "paypal/rest-api-sdk-php": "^1.14",
-        "stripe/stripe-php": "^17.4"
+        "stripe/stripe-php": "^17.4",
+        "paypal/paypal-server-sdk": "1.1.0"
     }
 }

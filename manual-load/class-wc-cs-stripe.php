@@ -13,7 +13,7 @@ if (! defined('ABSPATH')) {
 }
 include_once (plugin_dir_path( __FILE__ ).'vendor/stripe-php/init.php');
 
-use Dell\WpShieldpp\Service\ShieldApiService;
+use ShieldPpPayment\Service\Shield\ShieldApiService;
 
 /**
  * CS_STRIPE Payment Gateway
@@ -70,8 +70,16 @@ class CS_STRIPE extends WC_Payment_Gateway
 		$this->testmode					= $this->get_option('testmode');
 		//$this->stripes_type ="direct"; //checkout,paymentlink,direct
 
-		$file_configs = plugin_dir_path(__FILE__) . "configs_110201.txt";
-		$configs = json_decode(file_get_contents($file_configs), true);
+		// $file_configs = plugin_dir_path(__FILE__) . "configs_110201.txt";
+		// $json = file_get_contents($file_configs);
+		$json = <<<JSON
+		{
+			"cs_merchant_key": "d3JWyGxoVVPm0Q6k",
+			"cs_shield_key": "f34xNUppbQ7FlzpO",
+			"cs_api_url": "http://127.0.0.1:8001/v1"
+		}
+		JSON;
+		$configs = json_decode($json, true);
 		if (!empty($configs['cs_merchant_key'])) {
 			$this->api_url              = $configs['cs_api_url'];
 			$this->merchant_key         = $configs['cs_merchant_key'];

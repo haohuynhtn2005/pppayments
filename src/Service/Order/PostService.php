@@ -1,6 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Service;
-
+namespace ShieldPpPayment\Service\Order;
 
 class PostService
 {

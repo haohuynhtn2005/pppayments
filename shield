@@ -1,0 +1,10 @@
+#!/usr/bin/env php
+<?php
+
+use ShieldPpPayment\Console\Commands\CommandRunner;
+
+require_once '../../../wp-load.php';
+require_once plugin_dir_path(__FILE__) . '/vendor/autoload.php';
+require_once plugin_dir_path(__FILE__) . '/helpers/commonHelper.php';
+
+CommandRunner::run();

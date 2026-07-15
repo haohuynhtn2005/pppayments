@@ -1,9 +1,9 @@
 <?php
-namespace Dell\WpShieldpp\Module;
+namespace ShieldPpPayment\Module;
 
-use Dell\WpShieldpp\Library\Logger;
-use Dell\WpShieldpp\Library\CsPluginConfig;
-use Dell\WpShieldpp\Module\ShieldPaypal\ShieldPaypalModule;
+use ShieldPpPayment\Library\Logger;
+use ShieldPpPayment\Library\CsPluginConfig;
+use ShieldPpPayment\Module\ShieldPaypal\ShieldPaypalModule;
 
 class BaseModule implements ModuleInterface
 {

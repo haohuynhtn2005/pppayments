@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Helper;
+namespace ShieldPpPayment\Helper;
 
 final class ClientIpHelper
 {

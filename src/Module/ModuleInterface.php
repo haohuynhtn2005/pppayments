@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Module;
+namespace ShieldPpPayment\Module;
 
 interface ModuleInterface
 {

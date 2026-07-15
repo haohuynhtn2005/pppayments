@@ -6,7 +6,7 @@
  * @package WooCommerce\PayPalCommerce\ApiClient\Entity
  */
 declare (strict_types=1);
-namespace Dell\WpShieldpp\Paypal\Entity;
+namespace ShieldPpPayment\Paypal\Entity;
 
 /**
  * Class Item

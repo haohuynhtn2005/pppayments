@@ -1,12 +1,13 @@
 <?php
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal;
 
 //v2
-use WC_Product;
-use Dell\WpShieldpp\Paypal\Entity\Item;
-use Dell\WpShieldpp\Paypal\Entity\Money;
-use Dell\WpShieldpp\Service\IpSignService;
+use ShieldPpPayment\Paypal\Proxy\ProxyPayPalHttpClient;
+use ShieldPpPayment\Paypal\Entity\Item;
+use ShieldPpPayment\Paypal\Entity\Money;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
+use ShieldPpPayment\Service\Order\IpSignService;
+use WC_Product;
 
 class PaypalType2
 {
@@ -24,22 +25,22 @@ class PaypalType2
         // $returnUrl = $checkoutUrl;
         // $cancelUrl = $checkoutUrl;
 
-        $siteUrl = site_url();
-        $cancelUrl = $siteUrl . '/wc-api/wc_cancel/';
-        $computedSign = IpSignService::genIpSign($customerIp, $order_id);
-        $params = [
-            'sign' => $computedSign,
-        ];
-        $baseReturnUrl = $this->path;
-        if (!$baseReturnUrl) {
-            $params = [
-                'orderId' => $order_id,
-                'csRefCode' => $cs_ref_code,
-                ...$params,
-            ];
-            $siteUrl . '/wc-api/wc_return_url';
-            $baseReturnUrl = WC()->api_request_url('wc_return_url');
-        }
+        // $siteUrl = site_url();
+        // $cancelUrl = $siteUrl . '/wc-api/wc_cancel/';
+        // $computedSign = IpSignService::genIpSign($customerIp, $order_id);
+        // $params = [
+        //     'sign' => $computedSign,
+        // ];
+        // $baseReturnUrl = $this->path;
+        // if (!$baseReturnUrl) {
+        //     $params = [
+        //         'orderId' => $order_id,
+        //         'csRefCode' => $cs_ref_code,
+        //         ...$params,
+        //     ];
+        //     $siteUrl . '/wc-api/wc_return_url';
+        //     $baseReturnUrl = WC()->api_request_url('wc_return_url');
+        // }
         // $escapedQuery = wp_unslash($params);
         // $returnUrl = add_query_arg($escapedQuery, $baseReturnUrl);
         $returnUrl = WC()->api_request_url('wc_return_url');
@@ -47,13 +48,13 @@ class PaypalType2
 
         $client = $this->client;
         // $unique_invoice_id = $order_id . '-' . time();
-        $unique_invoice_id = $this->invoiceIdPrefix . $order_id;
+        $paypalInvoiceId = $this->invoiceIdPrefix . $order_id;
 
         $purchaseUnitItems =
             $this->getPurchaseUnitItems($order);
-        $amount =
+        $amount            =
             $this->amount_from_wc_order($order);
-        $request = new OrdersCreateRequest();
+        $request           = new OrdersCreateRequest();
         $request->prefer('return=representation');
         $payload = [
             "intent" => "CAPTURE",
@@ -64,31 +65,63 @@ class PaypalType2
                         ...$amount
                     ],
                     "description" => "",
+                    // "description" => "Your order $order_id",
                     ...$purchaseUnitItems,
-                    "invoice_id" => $unique_invoice_id,
+                    // "shipping" => [
+                    //     "type" => "SHIPPING",
+                    //     "name" => [
+                    //         'full_name' => 'sdaf asdf',
+                    //     ],
+                    //     "address" => [
+                    //         "country_code" => "US",
+                    //         "address_line_1" => "asdf",
+                    //         "address_line_2" => "sadf",
+                    //         "admin_area_1" => "AZ",
+                    //         "admin_area_2" => "sadf",
+                    //         "postal_code" => "30301",
+                    //     ],
+                    // ],
+                    "invoice_id" => $paypalInvoiceId,
                 ]
             ],
-            "application_context" => [
-                "cancel_url" => $cancelUrl,
-                "return_url" => $returnUrl,
-            ]
+            // "application_context" => [
+            //     "cancel_url" => $cancelUrl,
+            //     "return_url" => $returnUrl,
+            //     "shipping_preference" => "GET_FROM_FILE",
+            // ],
+            'payment_source' => [
+                'paypal' => [
+                    'experience_context' => [
+                        'cancel_url' => $cancelUrl,
+                        'return_url' => $returnUrl,
+                        // 'brand_name' => 'WordPress',
+                        // 'locale' => 'en-US',
+                        // 'landing_page' => 'NO_PREFERENCE',
+                        // // 'shipping_preference' => 'NO_SHIPPING',
+                        'shipping_preference' => 'GET_FROM_FILE',
+                        // 'user_action' => 'PAY_NOW',
+                        // 'payment_method_preference' => 'UNRESTRICTED',
+                        // 'contact_preference' => 'UPDATE_CONTACT_INFO',
+                    ],
+                ],
+            ],
         ];
 
         $request->body = $payload;
-        $response = $client->execute($request);
-        $result = $response->result;
+        $response      = $client->execute($request);
+        $result        = $response->result;
         $paypalOrderId = $result->id ?? '';
 
         $approvalLink = null;
         foreach ($result->links as $link) {
-            if ($link->rel === 'approve') {
+            if ($link->rel === 'payer-action') {
                 $approvalLink = $link->href;
                 break;
             }
         }
 
         update_post_meta($order_id, 'paypal_order_id', $paypalOrderId);
-        update_post_meta($order_id, 'paypal_invoice_id', $unique_invoice_id);
+        update_post_meta($order_id, 'paypal_invoice_id', $paypalInvoiceId);
         update_post_meta($order_id, 'cs_pp_payment_link', $approvalLink);
 
         return [
@@ -104,13 +137,14 @@ class PaypalType2
         $items = array_map(function ($item) {
             return $item->to_array();
         }, $items);
-        $item = reset($items) ?? null;
+        $item  = reset($items) ?? null;
         if (!$item) {
             return [];
 
         }
-        $total = $order->get_total();
+        $total                        = $order->get_subtotal();
         $item['unit_amount']['value'] = $total;
+        return ['items' => $items];
         return ['items' => [$item]];
     }
 
@@ -125,23 +159,32 @@ class PaypalType2
         $currency = $order->get_currency();
         $currency = 'USD';
         // $items = $this->item_factory->from_wc_order($order);
-        // $discount_value = array_sum(array(
-        //     (float) $order->get_total_discount(),
-        //     // Only coupons.
-        //     $this->discounts_from_items($items),
-        // ));
-        $discount = null;
-        // if ($discount_value) {
-        //     $discount = new Money((float) $discount_value, $currency);
+        $discount_value = array_sum(array(
+            (float) $order->get_total_discount(),
+            // Only coupons.
+            // $this->discounts_from_items($items),
+        ));
+        $discount       = null;
+        if ($discount_value) {
+            $discount = new Money((float) $discount_value, $currency);
+        }
+        $handling = null;
+        // $handling_value = (float) $order->get_total_fees();
+        // if ($handling_value) {
+        //     $handling = new Money((float) $handling_value, $currency);
         // }
         $total_value = (float) $order->get_total();
         // if ((in_array($order->get_payment_method(), array(CreditCardGateway::ID, CardButtonGateway::ID), \true) || PayPalGateway::ID === $order->get_payment_method() && 'card' === $order->get_meta(PayPalGateway::ORDER_PAYMENT_SOURCE_META_KEY)) && $this->is_free_trial_order($order)) {
         //     $total_value = 1.0;
         // }
-        $total = new Money($total_value, $currency);
-        $item_total = new Money((float) $order->get_subtotal() + (float) $order->get_total_fees(), $currency);
-        $shipping = new Money((float) $order->get_shipping_total(), $currency);
-        $tax_total = new Money((float) $order->get_total_tax(), $currency);
+        $total      = new Money($total_value, $currency);
+        $item_total = new Money(
+            (float) $order->get_subtotal()
+            + (float) $order->get_total_fees(),
+            $currency
+        );
+        $shipping   = new Money((float) $order->get_shipping_total(), $currency);
+        $tax_total  = new Money((float) $order->get_total_tax(), $currency);
 
 
         $breakdown = array();
@@ -154,9 +197,9 @@ class PaypalType2
         if ($tax_total) {
             $breakdown['tax_total'] = $tax_total->to_array();
         }
-        // if ($handling) {
-        //     $breakdown['handling'] = $handling->to_array();
-        // }
+        if ($handling) {
+            $breakdown['handling'] = $handling->to_array();
+        }
         // if ($insurance) {
         //     $breakdown['insurance'] = $insurance->to_array();
         // }
@@ -187,7 +230,7 @@ class PaypalType2
             },
             $order->get_items('line_item')
         );
-        $fees = array_map(function (\WC_Order_Item_Fee $item) use ($order) {
+        $fees  = array_map(function (\WC_Order_Item_Fee $item) use ($order) {
             return $this->from_wc_order_fee($item, $order);
         }, $order->get_fees());
         return array_merge($items, $fees);
@@ -202,15 +245,15 @@ class PaypalType2
      */
     private function from_wc_order_line_item(\WC_Order_Item_Product $item, \WC_Order $order): Item
     {
-        $product = $item->get_product();
-        $currency = $order->get_currency();
-        $currency = 'USD';
-        $quantity = (int) $item->get_quantity();
-        $price_without_tax = (float) $order->get_item_subtotal($item, \false);
+        $product                   = $item->get_product();
+        $currency                  = $order->get_currency();
+        $currency                  = 'USD';
+        $quantity                  = (int) $item->get_quantity();
+        $price_without_tax         = (float) $order->get_item_subtotal($item, \false);
         $price_without_tax_rounded = round($price_without_tax, 2);
-        $image = $product instanceof WC_Product ? wp_get_attachment_image_src((int) $product->get_image_id(), 'full') : '';
-        $line_tax = (float) $item->get_total_tax();
-        $unit_tax = $quantity > 0 ? $line_tax / (float) $quantity : 0.0;
+        $image                     = $product instanceof WC_Product ? wp_get_attachment_image_src((int) $product->get_image_id(), 'full') : '';
+        $line_tax                  = (float) $item->get_total_tax();
+        $unit_tax                  = $quantity > 0 ? $line_tax / (float) $quantity : 0.0;
         return new Item(
             $this->prepare_item_string($item->get_name()),
             new Money($price_without_tax_rounded, $currency),

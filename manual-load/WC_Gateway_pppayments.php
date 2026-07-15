@@ -17,19 +17,19 @@ use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Payments\CapturesGetRequest;
 
-use Dell\WpShieldpp\ConfigFormField;
-use Dell\WpShieldpp\Helper\ClientIpHelper;
-use Dell\WpShieldpp\Library\CsPluginConfig;
-use Dell\WpShieldpp\Paypal\PaypalClient;
-use Dell\WpShieldpp\Paypal\PaypalType0;
-use Dell\WpShieldpp\Paypal\PaypalType1;
-use Dell\WpShieldpp\Paypal\PaypalType2;
-use Dell\WpShieldpp\Paypal\PpaymentsPluginConfigDto;
-use Dell\WpShieldpp\Service\CsOrderService;
-use Dell\WpShieldpp\Service\ErrorHandler;
-use Dell\WpShieldpp\Service\ShieldSettingService;
-use Dell\WpShieldpp\Service\ReportDataService;
-use Dell\WpShieldpp\Response\FailedResponseDto;
+use ShieldPpPayment\Helper\ClientIpHelper;
+use ShieldPpPayment\Library\CsPluginConfig;
+use ShieldPpPayment\Paypal\PaypalClient;
+use ShieldPpPayment\Paypal\PaypalType0;
+use ShieldPpPayment\Paypal\PaypalType1;
+use ShieldPpPayment\Paypal\PaypalType2;
+use ShieldPpPayment\Paypal\PpaymentsPluginConfigDto;
+use ShieldPpPayment\Service\ConfigFormFieldService;
+use ShieldPpPayment\Service\ErrorHandler;
+use ShieldPpPayment\Service\ReportDataService;
+use ShieldPpPayment\Response\FailedResponseDto;
+use ShieldPpPayment\Service\Order\CsOrderService;
+use ShieldPpPayment\Service\Shield\ShieldSettingService;
 
 class WC_Gateway_pppayments extends WC_Payment_Gateway
 {
@@ -74,7 +74,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
 
         $this->title                  = 'Paypal';
         $this->description            = '';
-        $this->order_button_text      = 'Pay Now';
+        $this->order_button_text      = 'Proceed to pay';
 
         // Load the settings.
         $this->init_settings();
@@ -172,16 +172,16 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
         add_action('woocommerce_email_before_order_table', [$this, 'email_instructions'], 10, 3);
         // Hook to update options
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, [$this, 'process_admin_options']);
-        // page
+        // Hook to update order status when complete payment
         add_filter('woocommerce_payment_complete_order_status', [$this, 'change_payment_complete_order_status'], 10, 3);
     }
 
     public function init_form_fields()
     {
-        $this->form_fields = ConfigFormField::getFormFields();
+        $this->form_fields = ConfigFormFieldService::getFormFields();
         $key = "invoice_id_prefix";
         if (!\array_key_exists($key, $this->settings)) {
-            $generatedPrefix = ConfigFormField::genInvoicePrefix();
+            $generatedPrefix = ConfigFormFieldService::genInvoicePrefix();
             $this->update_option($key, $generatedPrefix);
         }
     }
@@ -231,6 +231,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
      */
     public function admin_options()
     {
+        return parent::admin_options();
         $settingHtml = $this->generate_settings_html([], false);
         $title = __('Paypal Payment Gateway', 'ttr_shield_payments');
         $desc =
@@ -495,7 +496,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
     public function add_custom_order()
     {
         try {
-            if(empty($_POST)) {
+            if(!$_POST) {
                 wp_send_json([
                     'status' => false,
                     'msg'    => 'Access denied.'
@@ -503,19 +504,19 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
                 exit;
             }
             $cs_ref_code = $_POST['cs_ref_code'];
-            $product_price = (float) $_POST['total_price'];
+            $targetPrice = (float) $_POST['total_price'];
             $customer_email = $_POST['customer_email'];
             $product_name = $_POST['product_name'];
             $first_name = $_POST['customer_first_name'];
             $last_name = $_POST['customer_last_name'];
             $mc_success_url = $_POST['mc_success_url'] ?? '';
             $mc_failed_url = $_POST['mc_failed_url'] ?? '';
-            $customer_ip = isset($_POST['customer_ip']) ? $_POST['customer_ip'] : '';
+            $customer_ip = $_POST['customer_ip'] ?? '';
 
             $csOrderSrv = new CsOrderService();
             $order = $csOrderSrv->createOrder(
                 $cs_ref_code,
-                $product_price,
+                $targetPrice,
                 $customer_email,
                 $product_name,
                 $first_name,
@@ -551,9 +552,9 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
                 $res = array(
                     'status' => true,
                     'result' => array(
+                        'cs_ref_code' => $cs_ref_code,
                         'shield_ref_code' => $order_id,
                         'payment_link' => $paymentLink,
-                        'cs_ref_code' => $cs_ref_code
                     )
                 );
             }
@@ -906,8 +907,8 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
 
     private function loadTemplate(string $template, array $data)
     {
-        $srcDir = CsPluginConfig::get('plugin.plugin_src_dir');
-        $pluginDir = plugin_dir_path($srcDir);
+        $pluginFile = CsPluginConfig::get('plugin.plugin_startup_file');
+        $pluginDir = plugin_dir_path($pluginFile);
         $pluginDir = rtrim($pluginDir, '/\\');
         extract($data);
         require_once $pluginDir . "/tpl/$template";

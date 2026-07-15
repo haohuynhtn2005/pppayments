@@ -1,6 +1,6 @@
 <?php
 
-namespace Dell\WpShieldpp\Response;
+namespace ShieldPpPayment\Response;
 
 class FailedResponseDto
 {

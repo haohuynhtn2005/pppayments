@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal;
 
 class PaypalType0
 {

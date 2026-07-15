@@ -1,8 +1,8 @@
 <?php
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal\Proxy;
 
 use CurlHandle;
-use Dell\WpShieldpp\Helper\StrHelper;
+use ShieldPpPayment\Helper\StrHelper;
 
 class ProxyConfigDto
 {

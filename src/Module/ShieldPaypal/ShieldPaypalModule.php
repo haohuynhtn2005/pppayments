@@ -1,14 +1,14 @@
 <?php
-namespace Dell\WpShieldpp\Module\ShieldPaypal;
+namespace ShieldPpPayment\Module\ShieldPaypal;
 
 //v2
-use Dell\WpShieldpp\Library\CsPluginConfig;
-use Dell\WpShieldpp\Module\ModuleInterface;
-use Dell\WpShieldpp\Paypal\Block\PPPayments_Blocks;
-use Dell\WpShieldpp\Service\CsOrderService;
-use Dell\WpShieldpp\Service\ErrorHandler;
-use Dell\WpShieldpp\Service\PluginUpdaterService;
-use Dell\WpShieldpp\Service\PostService;
+use ShieldPpPayment\Library\CsPluginConfig;
+use ShieldPpPayment\Module\ModuleInterface;
+use ShieldPpPayment\Paypal\Block\PPPayments_Blocks;
+use ShieldPpPayment\Service\Order\CsOrderService;
+use ShieldPpPayment\Service\Order\PostService;
+use ShieldPpPayment\Service\ErrorHandler;
+use ShieldPpPayment\Service\Shield\PluginUpdaterService;
 use Throwable;
 use WC_Gateway_pppayments;
 use WP_REST_Request;
@@ -19,11 +19,11 @@ class ShieldPaypalModule implements ModuleInterface
 {
   public static function init()
   {
-    $srcDir = CsPluginConfig::get('plugin.plugin_src_dir');
+    $pluginFile = CsPluginConfig::get('plugin.plugin_startup_file');
     // add_action('plugins_loaded', [__CLASS__, 'ttrInitGateway'], 0);
     add_action('woocommerce_loaded', [__CLASS__, 'ttrInitGateway']);
     add_filter(
-      'plugin_action_links_' . plugin_basename($srcDir),
+      'plugin_action_links_' . plugin_basename($pluginFile),
       [__CLASS__, 'ttrAddActionLink']
     );
     add_filter(
@@ -63,8 +63,8 @@ class ShieldPaypalModule implements ModuleInterface
       //'class-wc-cs-stripe.php',
       //'class-wc-jpay.php',
     ];
-    $srcDir = CsPluginConfig::get('plugin.plugin_src_dir');
-    $pluginDir = plugin_dir_path($srcDir);
+    $pluginFile = CsPluginConfig::get('plugin.plugin_startup_file');
+    $pluginDir = plugin_dir_path($pluginFile);
     $pluginDir = rtrim($pluginDir, '/\\');
     foreach ($classes as $class_file) {
       $file_path = "$pluginDir/manual-load/$class_file";
@@ -126,7 +126,13 @@ class ShieldPaypalModule implements ModuleInterface
         esc_html($cs_ref_code)
       );
     echo <<<HTML
-    <div class="order_data_column">
+    <div
+        class="order_data_column"
+        style="
+          word-wrap: break-word;
+          width: 100%;
+        "
+    >
         <h4>{$title}</h4>
         <p><strong>{$reference}</strong></p>
         <p><strong>{$payment_link_text}:</strong> {$payment_link}</p>

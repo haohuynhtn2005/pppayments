@@ -1,8 +1,8 @@
 <?php
 
-namespace Dell\WpShieldpp;
+namespace ShieldPpPayment\Service;
 
-class ConfigFormField
+class ConfigFormFieldService
 {
 
   public static function getFormFields()
@@ -53,6 +53,16 @@ class ConfigFormField
         'css' => 'width:400px'
       ),
 
+      'debug' => array(
+        'title' => __('Debug Log', 'ttr_shield_payments'),
+        'type' => 'checkbox',
+        'label' => __('Enable logging', 'ttr_shield_payments'),
+        'default' => 'true',
+        'description' =>
+          __('View logs in WooCommerce > Status > Logs (file: ttr_shield_payments).', 'ttr_shield_payments'),
+      ),
+      ...self::getProxyFields(),
+
       'waitmess' => array(
         'title' => __('Waiting Message', 'ttr_shield_payments'),
         'type' => 'text',
@@ -67,17 +77,6 @@ class ConfigFormField
         'default' => '',
         'css' => 'width:400px'
       ),
-
-      'debug' => array(
-        'title' => __('Debug Log', 'ttr_shield_payments'),
-        'type' => 'checkbox',
-        'label' => __('Enable logging', 'ttr_shield_payments'),
-        'default' => 'true',
-        'description' =>
-          __('View logs in WooCommerce > Status > Logs (file: ttr_shield_payments).', 'ttr_shield_payments'),
-      ),
-      ...self::getProxyFields(),
-
       /**
        * @deprecated
        */

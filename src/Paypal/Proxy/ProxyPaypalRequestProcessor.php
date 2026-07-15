@@ -1,7 +1,7 @@
 <?php
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal\Proxy;
 
-class PaypalRequestProcessor
+class ProxyPaypalRequestProcessor
 {
   public function __construct(
     // private bool $isTestMode,

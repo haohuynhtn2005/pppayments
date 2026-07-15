@@ -1,7 +1,7 @@
 <?php
-namespace Dell\WpShieldpp\Paypal\Block;
+namespace ShieldPpPayment\Paypal\Block;
 use Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType;
-use Dell\WpShieldpp\Library\CsPluginConfig;
+use ShieldPpPayment\Library\CsPluginConfig;
 
 class PPPayments_Blocks extends AbstractPaymentMethodType
 {
@@ -23,7 +23,7 @@ class PPPayments_Blocks extends AbstractPaymentMethodType
   {
     wp_register_script(
       'pppayments-blocks',
-      plugins_url('/assets/js/blocks.js', CsPluginConfig::get('plugin.plugin_src_dir')),
+      plugins_url('/assets/js/blocks.js', CsPluginConfig::get('plugin.plugin_startup_file')),
       [
         'wc-blocks-registry',
         'wc-settings',

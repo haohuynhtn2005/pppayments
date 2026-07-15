@@ -1,6 +1,6 @@
 <?php
 
-namespace Dell\WpShieldpp\Paypal;
+namespace ShieldPpPayment\Paypal\Proxy;
 
 use PayPalCheckoutSdk\Core\PayPalHttpClient;
 use PayPalHttp\Curl;
@@ -8,6 +8,7 @@ use PayPalHttp\HttpException;
 use PayPalHttp\HttpRequest;
 use PayPalHttp\HttpResponse;
 use PayPalHttp\IOException;
+use ShieldPpPayment\Paypal\Proxy\ProxyConfigDto;
 
 class ProxyPayPalHttpClient extends PayPalHttpClient
 {
@@ -48,7 +49,7 @@ class ProxyPayPalHttpClient extends PayPalHttpClient
             $requestCpy->headers = $formattedHeaders;
             $body = $this->encoder->serializeRequest($requestCpy);
             $requestCpy->headers = $this->mapHeaders($rawHeaders, $requestCpy->headers);
-            $paypalRqProcessor = new PaypalRequestProcessor();
+            $paypalRqProcessor = new ProxyPaypalRequestProcessor();
             $requestCpy->headers = $paypalRqProcessor->processHeaders($requestCpy->headers);
         }
 

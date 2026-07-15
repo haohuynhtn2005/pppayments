@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldpp\Service;
+namespace ShieldPpPayment\Service\Shield;
 
 class ShieldWebHookService
 {
