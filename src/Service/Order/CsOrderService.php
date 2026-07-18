@@ -210,7 +210,6 @@ class CsOrderService
     // $payee_email  = $payee->email_address ?? '';
     $payee_email  = $result->purchase_units[0]->payee->email_address ?? '';
     $buyer_email  = $result->payer->email_address ?? '';
-    $buyer_status = $result->payer->status ?? '';
 
     $invoiceId   = $result->purchase_units[0]->payments->captures[0]->invoice_id ?? '';
     $orderstatus = $result->purchase_units[0]->payments->captures[0]->status ?? '';
@@ -218,9 +217,6 @@ class CsOrderService
     $referenceId = $result->purchase_units[0]->reference_id ?? '';
 
     $captureStatus = $this->getCaptureStatus($txn_id, $pluginConfig);
-    if (strtolower($buyer_status) == "verified") {
-      $captureStatus = "Completed";
-    }
 
     $postSrv = new PostService();
     $postId  = $postSrv->getPostIdViaPaypalInvoiceId($invoiceId);

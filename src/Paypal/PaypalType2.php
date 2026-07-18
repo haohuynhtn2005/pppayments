@@ -2,6 +2,8 @@
 namespace ShieldPpPayment\Paypal;
 
 //v2
+use PayPalHttp\HttpException;
+use PayPalHttp\IOException;
 use ShieldPpPayment\Paypal\Proxy\ProxyPayPalHttpClient;
 use ShieldPpPayment\Paypal\Entity\Item;
 use ShieldPpPayment\Paypal\Entity\Money;
@@ -20,114 +22,129 @@ class PaypalType2
 
     public function createOrder($order, $cs_ref_code, $customerIp)
     {
-        $order_id = $order->get_id();
-        // $checkoutUrl = wc_get_checkout_url();
-        // $returnUrl = $checkoutUrl;
-        // $cancelUrl = $checkoutUrl;
+        try {
+            $order_id    = $order->get_id();
+            // $checkoutUrl = wc_get_checkout_url();
+            // $returnUrl   = $checkoutUrl;
+            // $cancelUrl   = $checkoutUrl;
 
-        // $siteUrl = site_url();
-        // $cancelUrl = $siteUrl . '/wc-api/wc_cancel/';
-        // $computedSign = IpSignService::genIpSign($customerIp, $order_id);
-        // $params = [
-        //     'sign' => $computedSign,
-        // ];
-        // $baseReturnUrl = $this->path;
-        // if (!$baseReturnUrl) {
-        //     $params = [
-        //         'orderId' => $order_id,
-        //         'csRefCode' => $cs_ref_code,
-        //         ...$params,
-        //     ];
-        //     $siteUrl . '/wc-api/wc_return_url';
-        //     $baseReturnUrl = WC()->api_request_url('wc_return_url');
-        // }
-        // $escapedQuery = wp_unslash($params);
-        // $returnUrl = add_query_arg($escapedQuery, $baseReturnUrl);
-        $returnUrl = WC()->api_request_url('wc_return_url');
-        $cancelUrl = WC()->api_request_url('wc_cancel');
+            // $siteUrl = site_url();
+            // $cancelUrl = $siteUrl . '/wc-api/wc_cancel/';
+            // $computedSign = IpSignService::genIpSign($customerIp, $order_id);
+            // $params = [
+            //     'sign' => $computedSign,
+            // ];
+            // $baseReturnUrl = $this->path;
+            // if (!$baseReturnUrl) {
+            //     $params = [
+            //         'orderId' => $order_id,
+            //         'csRefCode' => $cs_ref_code,
+            //         ...$params,
+            //     ];
+            //     $siteUrl . '/wc-api/wc_return_url';
+            //     $baseReturnUrl = WC()->api_request_url('wc_return_url');
+            // }
+            // $escapedQuery = wp_unslash($params);
+            // $returnUrl = add_query_arg($escapedQuery, $baseReturnUrl);
+            $returnUrl = WC()->api_request_url('wc_return_url');
+            $cancelUrl = WC()->api_request_url('wc_cancel');
 
-        $client = $this->client;
-        // $unique_invoice_id = $order_id . '-' . time();
-        $paypalInvoiceId = $this->invoiceIdPrefix . $order_id;
+            $client = $this->client;
+            // $unique_invoice_id = $order_id . '-' . time();
+            $paypalInvoiceId = $this->invoiceIdPrefix . $order_id;
 
-        $purchaseUnitItems =
-            $this->getPurchaseUnitItems($order);
-        $amount            =
-            $this->amount_from_wc_order($order);
-        $request           = new OrdersCreateRequest();
-        $request->prefer('return=representation');
-        $payload = [
-            "intent" => "CAPTURE",
-            "purchase_units" => [
-                [
-                    "reference_id" => $order_id,
-                    "amount" => [
-                        ...$amount
-                    ],
-                    "description" => "",
-                    // "description" => "Your order $order_id",
-                    ...$purchaseUnitItems,
-                    // "shipping" => [
-                    //     "type" => "SHIPPING",
-                    //     "name" => [
-                    //         'full_name' => 'sdaf asdf',
-                    //     ],
-                    //     "address" => [
-                    //         "country_code" => "US",
-                    //         "address_line_1" => "asdf",
-                    //         "address_line_2" => "sadf",
-                    //         "admin_area_1" => "AZ",
-                    //         "admin_area_2" => "sadf",
-                    //         "postal_code" => "30301",
-                    //     ],
-                    // ],
-                    "invoice_id" => $paypalInvoiceId,
-                ]
-            ],
-            // "application_context" => [
-            //     "cancel_url" => $cancelUrl,
-            //     "return_url" => $returnUrl,
-            //     "shipping_preference" => "GET_FROM_FILE",
-            // ],
-            'payment_source' => [
-                'paypal' => [
-                    'experience_context' => [
-                        'cancel_url' => $cancelUrl,
-                        'return_url' => $returnUrl,
-                        // 'brand_name' => 'WordPress',
-                        // 'locale' => 'en-US',
-                        // 'landing_page' => 'NO_PREFERENCE',
-                        // // 'shipping_preference' => 'NO_SHIPPING',
-                        'shipping_preference' => 'GET_FROM_FILE',
-                        // 'user_action' => 'PAY_NOW',
-                        // 'payment_method_preference' => 'UNRESTRICTED',
-                        // 'contact_preference' => 'UPDATE_CONTACT_INFO',
+            $purchaseUnitItems =
+                $this->getPurchaseUnitItems($order);
+            $amount            =
+                $this->amount_from_wc_order($order);
+            $request           = new OrdersCreateRequest();
+            $request->prefer('return=representation');
+            $payload = [
+                "intent" => "CAPTURE",
+                "purchase_units" => [
+                    [
+                        "reference_id" => $order_id,
+                        "amount" => [
+                            ...$amount
+                        ],
+                        "description" => "",
+                        // "description" => "Your order $order_id",
+                        ...$purchaseUnitItems,
+                        // "shipping" => [
+                        //     "type" => "SHIPPING",
+                        //     "name" => [
+                        //         'full_name' => 'sdaf asdf',
+                        //     ],
+                        //     "address" => [
+                        //         "country_code" => "US",
+                        //         "address_line_1" => "asdf",
+                        //         "address_line_2" => "sadf",
+                        //         "admin_area_1" => "AZ",
+                        //         "admin_area_2" => "sadf",
+                        //         "postal_code" => "30301",
+                        //     ],
+                        // ],
+                        "invoice_id" => $paypalInvoiceId,
+                    ]
+                ],
+                // "application_context" => [
+                //     "cancel_url" => $cancelUrl,
+                //     "return_url" => $returnUrl,
+                //     "shipping_preference" => "GET_FROM_FILE",
+                // ],
+                'payment_source' => [
+                    'paypal' => [
+                        'experience_context' => [
+                            'cancel_url' => $cancelUrl,
+                            'return_url' => $returnUrl,
+                            // 'brand_name' => 'WordPress',
+                            // 'locale' => 'en-US',
+                            // 'landing_page' => 'NO_PREFERENCE',
+                            // // 'shipping_preference' => 'NO_SHIPPING',
+                            'shipping_preference' => 'GET_FROM_FILE',
+                            // 'user_action' => 'PAY_NOW',
+                            // 'payment_method_preference' => 'UNRESTRICTED',
+                            // 'contact_preference' => 'UPDATE_CONTACT_INFO',
+                        ],
                     ],
                 ],
-            ],
-        ];
+            ];
 
-        $request->body = $payload;
-        $response      = $client->execute($request);
-        $result        = $response->result;
-        $paypalOrderId = $result->id ?? '';
+            $request->body = $payload;
+            $response      = $client->execute($request);
+            $result        = $response->result;
+            $paypalOrderId = $result->id ?? '';
 
-        $approvalLink = null;
-        foreach ($result->links as $link) {
-            if ($link->rel === 'payer-action') {
-                $approvalLink = $link->href;
-                break;
+            $approvalLink = null;
+            foreach ($result->links as $link) {
+                if ($link->rel === 'payer-action') {
+                    $approvalLink = $link->href;
+                    break;
+                }
             }
+
+            update_post_meta($order_id, 'paypal_order_id', $paypalOrderId);
+            update_post_meta($order_id, 'paypal_invoice_id', $paypalInvoiceId);
+            update_post_meta($order_id, 'cs_pp_payment_link', $approvalLink);
+
+            return [
+                'status' => true,
+                'payment_link' => $approvalLink,
+            ];
+        } catch (HttpException | IOException $e) {
+            $message  = "Error:\n";
+            $message .= "Message: Error in paypal_type_2 " . $e->getMessage() . "\n";
+            $message .= "File: " . $e->getFile() . "\n";
+            $message .= "Line: " . $e->getLine() . "\n";
+
+            plugin_custom_log($message, 'debug.log');
+            telegram_push_log($message);
+
+            return [
+                'status' => false,
+                'msg' => $e->getMessage(),
+            ];
         }
-
-        update_post_meta($order_id, 'paypal_order_id', $paypalOrderId);
-        update_post_meta($order_id, 'paypal_invoice_id', $paypalInvoiceId);
-        update_post_meta($order_id, 'cs_pp_payment_link', $approvalLink);
-
-        return [
-            'status' => true,
-            'payment_link' => $approvalLink,
-        ];
     }
 
     private function getPurchaseUnitItems($order)
@@ -140,7 +157,6 @@ class PaypalType2
         $item  = reset($items) ?? null;
         if (!$item) {
             return [];
-
         }
         $total                        = $order->get_subtotal();
         $item['unit_amount']['value'] = $total;

@@ -2,7 +2,7 @@
 
 return [
   'id' => 'pppayments',
-  'version' => '1.3.3',
+  'version' => '1.3.4',
   'logLevel' => 'debug',
   'secret' => 'b8c7fda7d4d08c118b2e7250fc101cb4',
   'contact_page_link' => '/wc-api/contact',

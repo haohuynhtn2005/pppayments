@@ -38,10 +38,11 @@ class ShieldPaypalModule implements ModuleInterface
         'permission_callback' => '__return_true',
       ]);
     });
-    add_action('template_redirect', function () {
-      return;
-      self::handleCheckoutRedirect();
-    }, 9);
+    add_action(
+      'template_redirect',
+      [__CLASS__, 'handleCheckoutRedirect'],
+      -1,
+    );
 
     add_action(
       'woocommerce_blocks_payment_method_type_registration',
@@ -82,7 +83,6 @@ class ShieldPaypalModule implements ModuleInterface
     $methods[] = 'cs_stripe';
     $methods[] = 'CS_JPAY';
     return $methods;
-
   }
 
   public static function ttrAddActionLink($links)
@@ -209,13 +209,21 @@ class ShieldPaypalModule implements ModuleInterface
     return new WP_REST_Response(['success' => 'Message sent'], 200);
   }
 
-  private static function handleCheckoutRedirect()
+  public static function handleCheckoutRedirect()
   {
     try {
       $token = $_GET['token'] ?? '';
       $payerId = $_GET['PayerID'] ?? '';
       $isCheckoutPage = is_checkout();
-      if (!$isCheckoutPage || !$token) {
+      // Source - https://stackoverflow.com/a/6768831
+      // Posted by ax., modified by community. See post 'Timeline' for change history
+      // Retrieved 2026-07-16, License - CC BY-SA 4.0
+      $requestUri = (empty($_SERVER['HTTPS']) ? 'http' : 'https')
+        . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+      $requestUrl =  self::removeQueryStringFromUrl($requestUri);
+      $checkoutUrl = wc_get_checkout_url();
+      $isRequestingCheckout = $requestUrl == $checkoutUrl;
+      if (!$token || (!$isCheckoutPage && !$isRequestingCheckout)) {
         return;
       }
 
@@ -237,8 +245,7 @@ class ShieldPaypalModule implements ModuleInterface
         // return;
       }
 
-      $baseCaptureUrl =
-        WC()->api_request_url('wc_return_url');
+      $baseCaptureUrl = WC()->api_request_url('wc_return_url');
       $escapedQuery = wp_unslash($_GET);
       $captureUrl = add_query_arg($escapedQuery, $baseCaptureUrl);
 
@@ -248,5 +255,16 @@ class ShieldPaypalModule implements ModuleInterface
     } catch (Throwable $th) {
       ErrorHandler::handleGeneralError($th);
     }
+  }
+
+  private static function removeQueryStringFromUrl($url) {
+    $parts = parse_url($url);
+    $scheme = $parts['scheme'] ?? '';
+    $host   = $parts['host'] ?? '';
+    $port   = isset($parts['port']) ? ":{$parts['port']}" : '';
+    $path   = $parts['path'] ?? '';
+
+    $urlWithoutQuery = "{$scheme}://{$host}{$port}{$path}";
+    return $urlWithoutQuery;
   }
 }

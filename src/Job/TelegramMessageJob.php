@@ -1,5 +1,5 @@
 <?php
-namespace Dell\WpShieldp\Job;
+namespace ShieldPpPayment\Job;
 
 use ShieldPpPayment\Library\Job;
 use ShieldPpPayment\Service\Telegram\Dto\TelegramMessageOptions;

@@ -67,7 +67,7 @@ class WC_Gateway_pppayments extends WC_Payment_Gateway
     public function __construct()
     {
         // WooCommerce required settings
-        $this->id                 = 'pppayments';
+        $this->id                 = CsPluginConfig::get('plugin.id');
         $this->method_title       = __('TTR Paypal payment', 'ttr_shield_payments');
         $this->method_description = __('Payment with ttr paypal method.', 'ttr_shield_payments');
         $this->has_fields = true;

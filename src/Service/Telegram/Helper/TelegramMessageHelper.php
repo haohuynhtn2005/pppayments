@@ -45,10 +45,12 @@ class TelegramMessageHelper
 
   public static function getBeautifulLink()
   {
-    $url = home_url();
-    $parsed = parse_url($url);
-    $path = isset($parsed['path']) ? rtrim($parsed['path'], '/') : '';
-    $link = $parsed['host'] . $path;
+    $url       = home_url();
+    $parsedUrl = parse_url($url);
+    $rawPath   = $parsedUrl['path'] ?? '';
+    $path      = rtrim($rawPath, '/');
+    $host      = $parsedUrl['host'] ?? '';
+    $link      = "$host$path";
     return $link;
   }
 }

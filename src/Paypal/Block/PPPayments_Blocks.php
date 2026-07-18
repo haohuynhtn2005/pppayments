@@ -5,7 +5,8 @@ use ShieldPpPayment\Library\CsPluginConfig;
 
 class PPPayments_Blocks extends AbstractPaymentMethodType
 {
-  public function __construct() {
+  public function __construct()
+  {
     $this->name = CsPluginConfig::get('plugin.id');
   }
 
@@ -21,9 +22,11 @@ class PPPayments_Blocks extends AbstractPaymentMethodType
 
   public function get_payment_method_script_handles()
   {
+    $src =
+      plugins_url('/assets/js/blocks.js', CsPluginConfig::get('plugin.plugin_startup_file'));
     wp_register_script(
       'pppayments-blocks',
-      plugins_url('/assets/js/blocks.js', CsPluginConfig::get('plugin.plugin_startup_file')),
+      $src,
       [
         'wc-blocks-registry',
         'wc-settings',

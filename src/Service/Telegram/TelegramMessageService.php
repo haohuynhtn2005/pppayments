@@ -1,7 +1,7 @@
 <?php
 namespace ShieldPpPayment\Service\Telegram;
 
-use Dell\WpShieldp\Job\TelegramMessageJob;
+use ShieldPpPayment\Job\TelegramMessageJob;
 use ShieldPpPayment\Library\CsPluginConfig;
 use ShieldPpPayment\Service\Telegram\Dto\TelegramMessageOptions;
 use ShieldPpPayment\Service\Telegram\Dto\TelegramParseMode;

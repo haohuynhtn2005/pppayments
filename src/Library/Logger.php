@@ -1,7 +1,7 @@
 <?php
 namespace ShieldPpPayment\Library;
 
-use Dell\WpShieldp\Job\TelegramMessageJob;
+use ShieldPpPayment\Job\TelegramMessageJob;
 use ShieldPpPayment\Library\CsPluginConfig;
 // use PaypalShield\Job\TelegramMessageJob;
 

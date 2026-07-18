@@ -81,12 +81,6 @@
         <form id="contactForm" method="POST">
             <?php
                 $sign = '';
-                // $signData = json_encode([
-                //     'site' => home_url(),
-                //     'paypal_acc' => $business_email,
-                // ]);
-                // $sign = encodePmCode($signData);
-                // $sign = encodePmCode('');
             ?>
             <input id="sign" type="hidden" name="sign" value="<?php echo $sign ?>" />
 
